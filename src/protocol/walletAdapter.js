@@ -6,6 +6,21 @@
  * a unified API consumed by the rest of the app.
  */
 
+// Helper: Hex string to Uint8Array
+function hexToBytes(hex) {
+  if (hex.startsWith('0x')) hex = hex.slice(2);
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+  return bytes;
+}
+
+// Helper: Uint8Array to Hex string
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 import HubApi from '@nimiq/hub-api';
 
 const HUB_URL = import.meta.env.VITE_NIMIQ_NETWORK === 'mainnet'
@@ -99,11 +114,30 @@ class WalletAdapter {
     };
 
     if (this.environment === 'mini-app') {
-      // SDK naming may differ; try sendTransaction, then checkout
-      if (typeof this._sdk.sendTransaction === 'function') {
-        return this._sdk.sendTransaction(request);
+      try {
+        let result;
+        if (txDetails.extraData) {
+          const dataHex = typeof txDetails.extraData === 'string' 
+            ? txDetails.extraData 
+            : bytesToHex(txDetails.extraData);
+            
+          result = await this._sdk.sendBasicTransactionWithData({
+            recipient: request.recipient,
+            value: request.value,
+            data: dataHex
+          });
+        } else {
+          result = await this._sdk.sendBasicTransaction({
+            recipient: request.recipient,
+            value: request.value
+          });
+        }
+        
+        if (result && result.error) throw new Error(result.error.message || 'Transaction failed');
+        return result;
+      } catch (err) {
+        throw new Error(err?.message || 'Transaction failed or rejected');
       }
-      return this._sdk.checkout?.(request);
     }
 
     return this._getHub().checkout(request);
@@ -119,7 +153,18 @@ class WalletAdapter {
     const request = { appName: 'NimPerks', message };
 
     if (this.environment === 'mini-app') {
-      return this._sdk.signMessage?.(request);
+      try {
+        const result = await this._sdk.sign(message);
+        if (result && result.error) throw new Error(result.error.message || 'Signing failed');
+        
+        return {
+          message: message instanceof Uint8Array ? message : new TextEncoder().encode(message),
+          signature: hexToBytes(result.signature),
+          signerPubKey: hexToBytes(result.publicKey)
+        };
+      } catch (err) {
+        throw new Error(err?.message || 'Signing failed or rejected');
+      }
     }
 
     return this._getHub().signMessage(request);
