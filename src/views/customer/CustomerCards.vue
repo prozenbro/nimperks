@@ -317,6 +317,19 @@ async function confirmPayment() {
       recipient: stamp.merchant,
       value: amountInLuna
     });
+    
+    // Nimiq Pay transactions go to mempool and may take time to confirm.
+    // Start background polling for network confirmation.
+    let attempts = 0;
+    const pollInterval = setInterval(async () => {
+      attempts++;
+      await refreshData();
+      // Stop polling after 60 seconds (6 attempts * 10 seconds = 60s)
+      if (attempts >= 6) clearInterval(pollInterval);
+    }, 10000); // Check every 10 seconds
+    
+    // Immediate refresh attempt
+    await refreshData();
   } catch (err) {
     console.warn('Payment failed/cancelled', err);
   }

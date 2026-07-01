@@ -102,7 +102,38 @@ export class IndexerService extends EventTarget {
     if (!parsed) return;
 
     if (type === 'campaigns') {
-      if (parsed.type === 'flashbuy_join') {
+      if (parsed.type === 'campaign') {
+        const normFrom = (tx.from || '').replace(/\s+/g, '').toUpperCase();
+        if (normFrom === parsed.merchant) {
+          await db.rules.put({
+            merchant: parsed.merchant,
+            type: parsed.ruleType,
+            target: parsed.target,
+            reward: parsed.reward,
+            label: parsed.reward,
+            value: '', 
+            timestamp: parsed.timestamp,
+          });
+        }
+      }
+      
+      else if (parsed.type === 'flashbuy') {
+        const normFrom = (tx.from || '').replace(/\s+/g, '').toUpperCase();
+        if (normFrom === parsed.merchant) {
+           await db.campaigns.put({
+             id: parsed.campId,
+             merchant: parsed.merchant,
+             target: parsed.targetCount,
+             expiry: parsed.expiry,
+             label: parsed.label,
+             type: 'FLASHBUY',
+             status: 'active',
+             current_count: 0
+           });
+        }
+      }
+
+      else if (parsed.type === 'flashbuy_join') {
         const campaign = await db.campaigns.get(parsed.campId);
         if (campaign) {
           campaign.current_count = (campaign.current_count || 0) + 1;
@@ -214,9 +245,9 @@ export class IndexerService extends EventTarget {
           };
         }
 
-        // Exclude transactions before the rule was created
+        // Exclude transactions before the rule was created (but allow 0 / mempool txs)
         const txMs = (tx.timestamp || 0) * 1000;
-        if (rule.timestamp && txMs < rule.timestamp) {
+        if (rule.timestamp && txMs > 0 && txMs < rule.timestamp) {
           return; // Skip counting older transactions
         }
 

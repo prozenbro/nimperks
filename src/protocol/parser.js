@@ -77,13 +77,29 @@ export function parseTransactionData(dataString) {
   }
 
   if (text.startsWith('FLASHBUY|')) {
-    // FLASHBUY|campId|targetCount|expiryBlock
+    // FLASHBUY|{merchant}|{campaignId}|{targetCount}|{expiry}|{label}|{timestamp}
     const parts = text.split('|');
     return {
       type: 'flashbuy',
-      campId: parts[1],
-      targetCount: parseInt(parts[2], 10),
-      expiryBlock: parseInt(parts[3], 10)
+      merchant: parts[1],
+      campId: parts[2],
+      targetCount: parseInt(parts[3], 10),
+      expiry: parseInt(parts[4], 10),
+      label: parts[5],
+      timestamp: parseInt(parts[6], 10)
+    };
+  }
+
+  if (text.startsWith('CAMPAIGN|')) {
+    // CAMPAIGN|{merchant}|{type}|{target}|{reward}|{timestamp}
+    const parts = text.split('|');
+    return {
+      type: 'campaign',
+      merchant: parts[1],
+      ruleType: parts[2],
+      target: parseInt(parts[3], 10),
+      reward: parts[4],
+      timestamp: parseInt(parts[5], 10)
     };
   }
 
