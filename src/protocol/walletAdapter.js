@@ -28,25 +28,21 @@ class WalletAdapter {
     if (this.environment !== 'unknown') return this.environment;
 
     try {
-      // The Nimiq Pay mini-app SDK exposes a signal we can detect.
-      // It injects `window.__NIMIQ_MINIAPP__` or provides its own exports.
-      const sdk = await import('@nimiq/mini-app-sdk');
+      // The Nimiq Pay mini-app SDK exposes an async init() that waits for the native app injection.
+      const { init } = await import('@nimiq/mini-app-sdk');
 
-      // Different SDK versions may export NimiqMiniApp, MiniApp, or default
-      const MiniAppClass = sdk.NimiqMiniApp ?? sdk.MiniApp ?? sdk.default;
-      if (MiniAppClass) {
-        const instance = new MiniAppClass();
-        // Some SDK versions require an init/connect step
-        if (typeof instance.init === 'function') {
-          await instance.init();
-        }
-        this._sdk = instance;
+      // Initialize with a 500ms timeout to gracefully fall back in normal browsers
+      const nimiqProvider = await init({ timeout: 500 });
+      
+      if (nimiqProvider) {
+        this._sdk = nimiqProvider;
         this.environment = 'mini-app';
         console.info('[WalletAdapter] Running inside Nimiq Pay mini-app.');
         return 'mini-app';
       }
-    } catch (_) {
-      // Not in mini-app environment — fall through to Hub API
+    } catch (e) {
+      // Not in mini-app environment or timed out — fall through to Hub API
+      console.info('[WalletAdapter] Not in Nimiq Pay (or timed out), falling back to Hub.', e?.message || '');
     }
 
     this._hubApi = new HubApi(HUB_URL);
@@ -71,8 +67,16 @@ class WalletAdapter {
     await this.init();
 
     if (this.environment === 'mini-app') {
+      try {
+        const accounts = await this._sdk.listAccounts?.();
+        if (accounts && accounts.length > 0) {
+          return typeof accounts[0] === 'string' ? accounts[0] : accounts[0].address;
+        }
+      } catch (e) {
+        console.warn('listAccounts failed', e);
+      }
       const account = await this._sdk.requestAccount?.() ?? await this._sdk.getAccount?.();
-      return account.address;
+      return account?.address || account;
     }
 
     // Hub API
