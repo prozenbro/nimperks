@@ -232,6 +232,7 @@
   </div>
 </template>
 
+<script setup>
 import { ref, reactive, computed } from 'vue';
 import {
   Navbar as kNavbar,
