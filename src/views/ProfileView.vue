@@ -4,8 +4,7 @@
 
     <div class="content-wrap px-4 pt-6 pb-12 space-y-8">
       <!-- Identity card -->
-      <!-- Identity card -->
-      <k-card margin="m-0" class="id-card text-center" style="border-radius: 22px;">
+      <div class="id-card">
         <div class="identicon-wrap">
           <Identicon :address="auth.address" />
         </div>
@@ -19,150 +18,146 @@
           {{ auth.isMerchantMode ? 'Merchant Mode' : 'Customer Mode' }}
         </p>
         <p class="id-address">{{ auth.address }}</p>
-      </k-card>
+      </div>
 
       <!-- Loyalty target setup (Merchant Mode Only) -->
-      <template v-if="auth.isMerchantMode">
-        <k-block-title>Default Perk Stamps Target</k-block-title>
-        <k-list strongIos insetIos class="m-0">
-          <k-list-item
-            title="Default Stamp Target"
-            :after="`${minStamps} stamps`"
-            style="color: var(--text-primary); font-weight: 700;"
+      <div v-if="auth.isMerchantMode" class="section-card">
+        <h4 class="section-title">Default Perk Stamps Target</h4>
+        <p class="section-desc">Set the default number of stamps (0 to 10) customers need to collect to unlock rewards at your store.</p>
+        <div class="custom-input-group mt-4">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 0.90rem; font-weight: 700; color: var(--text-primary);">Default Stamp Target</span>
+            <span style="font-size: 1.1rem; font-weight: 800; color: var(--nim-gold);">{{ minStamps }} stamps</span>
+          </div>
+          <input 
+            v-model.number="minStamps" 
+            type="range" 
+            min="0" 
+            max="10" 
+            step="1"
+            style="width: 100%; accent-color: var(--nim-gold); cursor: pointer;"
           />
-          <k-list-item>
-            <k-range
-              v-model.number="minStamps"
-              :min="0"
-              :max="10"
-              :step="1"
-              class="w-full"
-              style="--k-range-thumb-color: var(--nim-gold); --k-range-track-active-color: var(--nim-gold);"
-            />
-          </k-list-item>
-          <k-list-item>
-            <k-button class="nim-btn-primary w-full submit-btn" @click="claimUsername" :disabled="claiming">
-              <span v-if="claiming" class="mini-spinner-inline" />
-              <span v-else>Update Target & Sign · Free</span>
-            </k-button>
-          </k-list-item>
-        </k-list>
-        <k-block-footer>
-          Set the default number of stamps (0 to 10) customers need to collect to unlock rewards at your store.
-        </k-block-footer>
-      </template>
+          <k-button class="nim-btn-primary w-full mt-4 submit-btn" @click="claimUsername" :disabled="claiming">
+            <span v-if="claiming" class="mini-spinner-inline" />
+            <span v-else>Update Target & Sign · Free</span>
+          </k-button>
+        </div>
+      </div>
 
       <!-- Claim username (Shown here ONLY if NOT claimed once yet) -->
-      <template v-if="!hasClaimedOnce">
-        <k-block-title>On-Chain Username</k-block-title>
-        <k-list strongIos insetIos class="m-0">
-          <div v-if="loadingProfile" class="py-4 text-center">
-            <div class="mini-spinner" />
-          </div>
-          <div v-else-if="currentProfile && !canChange" class="locked-banner" style="margin: 16px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Username locked until {{ nextChangeDate }}
-          </div>
-          <template v-else>
-            <k-list-input
-              label="Desired Username"
+      <div v-if="!hasClaimedOnce" class="section-card">
+        <h4 class="section-title">On-Chain Username</h4>
+        <p class="section-desc">Claim a unique identity. Customers & merchants can recognise you instantly.</p>
+
+        <div v-if="loadingProfile" class="py-4 text-center">
+          <div class="mini-spinner" />
+        </div>
+
+        <!-- Locked -->
+        <div v-else-if="currentProfile && !canChange" class="locked-banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Username locked until {{ nextChangeDate }}
+        </div>
+
+        <!-- Available -->
+        <div v-else class="claim-area custom-input-group">
+          <label class="custom-label text-left">Desired Username</label>
+          <div class="username-input-wrap">
+            <input
+              v-model="customUsername"
               type="text"
               placeholder="e.g. Satoshi123"
-              v-model="customUsername"
-              clearButton
-              style="position: relative;"
-            >
-              <template #inner>
-                <button class="suggest-btn" @click.prevent="regenerateSuggestion" style="position: absolute; right: 16px; top: 12px; z-index: 10;">🎲</button>
-              </template>
-            </k-list-input>
-            <k-block-footer v-if="claimAttemptsLeft < 6" class="text-red-500 font-bold px-4 pt-2">
-              {{ claimAttemptsLeft }} attempts remaining
-            </k-block-footer>
-            <k-list-item>
-              <k-button class="nim-btn-primary w-full submit-btn" @click="claimUsername" :disabled="txState.isPending">
-                <span v-if="txState.isPending" class="spinner" />
-                <span v-else>Claim Store Branding · 1 Luna</span>
-              </k-button>
-            </k-list-item>
-          </template>
-        </k-list>
-        <k-block-footer>
-          Claim a unique identity. Customers & merchants can recognise you instantly. Broadcasts a 1 Luna (~0.00001 NIM) transaction on-chain.
-        </k-block-footer>
-      </template>
+              class="custom-input flex-1"
+              style="text-align: center; font-weight: 700; letter-spacing: 0.02em;"
+            />
+            <button class="suggest-btn" @click="regenerateSuggestion">🎲</button>
+          </div>
+          <p v-if="claimAttemptsLeft < 6" class="attempts-warn">
+            {{ claimAttemptsLeft }} attempts remaining
+          </p>
+          <div class="claim-section">
+            <k-button @click="claimUsername" class="nim-btn-primary w-full submit-btn mt-6" style="padding: 24px; font-size: 1.1rem; letter-spacing: 0.02em;" :disabled="txState.isPending">
+              <span v-if="txState.isPending" class="spinner" />
+              <span v-else>Claim Store Branding · 1 Luna</span>
+            </k-button>
+            <p class="cost-note mt-2" style="font-size: 0.75rem; color: var(--text-secondary); text-align: center;">Broadcasts a 1 Luna (~0.00001 NIM) transaction on-chain.</p>
+          </div>
+        </div>
+      </div>
 
-      <!-- Settings & Network -->
-      <k-block-title>System</k-block-title>
-      <k-list strongIos insetIos class="m-0">
-        <!-- Theme -->
-        <k-list-item title="Theme">
-          <template #after>
-            <k-segmented strong rounded class="theme-seg">
-              <k-segmented-button :active="ui.theme === 'system'" @click="ui.setTheme('system')" small>Auto</k-segmented-button>
-              <k-segmented-button :active="ui.theme === 'light'"  @click="ui.setTheme('light')"  small>Light</k-segmented-button>
-              <k-segmented-button :active="ui.theme === 'dark'"   @click="ui.setTheme('dark')"   small>Dark</k-segmented-button>
-            </k-segmented>
-          </template>
-        </k-list-item>
-        
-        <!-- Network -->
-        <k-list-item title="Network Status">
-          <template #after>
-            <span class="net-status" style="display: flex; align-items: center; gap: 6px; font-weight: 600;">
-              <span class="net-dot" style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; display: inline-block;" />
-              {{ IS_TESTNET ? 'Testnet' : 'Mainnet' }}
-            </span>
-          </template>
-        </k-list-item>
-      </k-list>
+      <!-- Settings -->
+      <div class="section-card">
+        <h4 class="section-title">Appearance</h4>
+        <div class="theme-row">
+          <span class="theme-label">Theme</span>
+          <k-segmented strong rounded class="theme-seg">
+            <k-segmented-button :active="ui.theme === 'system'" @click="ui.setTheme('system')" small>Auto</k-segmented-button>
+            <k-segmented-button :active="ui.theme === 'light'"  @click="ui.setTheme('light')"  small>Light</k-segmented-button>
+            <k-segmented-button :active="ui.theme === 'dark'"   @click="ui.setTheme('dark')"   small>Dark</k-segmented-button>
+          </k-segmented>
+        </div>
+      </div>
+
+      <!-- Network -->
+      <div class="section-card">
+        <h4 class="section-title">Network</h4>
+        <div class="net-row">
+          <span class="net-label">Status</span>
+          <span class="net-status">
+            <span class="net-dot" />
+            {{ IS_TESTNET ? 'Testnet' : 'Mainnet' }} · Connected
+          </span>
+        </div>
+      </div>
 
       <!-- Change username (Tucked down here ONLY if claimed once already) -->
-      <template v-if="hasClaimedOnce">
-        <k-block-title>On-Chain Username</k-block-title>
-        <k-list strongIos insetIos class="m-0">
-          <div v-if="loadingProfile" class="py-4 text-center">
-            <div class="mini-spinner" />
-          </div>
-          <div v-else-if="currentProfile && !canChange" class="locked-banner" style="margin: 16px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Username locked until {{ nextChangeDate }}
-          </div>
-          <template v-else>
-            <k-list-input
-              label="Desired Username"
+      <div v-if="hasClaimedOnce" class="section-card">
+        <h4 class="section-title">On-Chain Username</h4>
+        <p class="section-desc">Claim a unique identity. Customers & merchants can recognise you instantly.</p>
+
+        <div v-if="loadingProfile" class="py-4 text-center">
+          <div class="mini-spinner" />
+        </div>
+
+        <!-- Locked -->
+        <div v-else-if="currentProfile && !canChange" class="locked-banner">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Username locked until {{ nextChangeDate }}
+        </div>
+
+        <!-- Available -->
+        <div v-else class="claim-area custom-input-group">
+          <label class="custom-label text-left">Desired Username</label>
+          <div class="username-input-wrap">
+            <input
+              v-model="customUsername"
               type="text"
               placeholder="e.g. Satoshi123"
-              v-model="customUsername"
-              clearButton
-              style="position: relative;"
-            >
-              <template #inner>
-                <button class="suggest-btn" @click.prevent="regenerateSuggestion" style="position: absolute; right: 16px; top: 12px; z-index: 10;">🎲</button>
-              </template>
-            </k-list-input>
-            <k-block-footer v-if="claimAttemptsLeft < 6" class="text-red-500 font-bold px-4 pt-2">
-              {{ claimAttemptsLeft }} attempts remaining
-            </k-block-footer>
-            <k-list-item>
-              <k-button class="nim-btn-primary w-full submit-btn" @click="claimUsername" :disabled="claiming">
-                <span v-if="claiming" class="mini-spinner-inline" />
-                <span v-else>Update Profile Settings · Free</span>
-              </k-button>
-            </k-list-item>
-          </template>
-        </k-list>
-        <k-block-footer>
-          Claim a unique identity. Customers & merchants can recognise you instantly.
-        </k-block-footer>
-      </template>
+              class="custom-input flex-1"
+              style="text-align: center; font-weight: 700; letter-spacing: 0.02em;"
+            />
+            <button class="suggest-btn" @click="regenerateSuggestion">🎲</button>
+          </div>
+          <p v-if="claimAttemptsLeft < 6" class="attempts-warn">
+            {{ claimAttemptsLeft }} attempts remaining
+          </p>
+          <k-button class="nim-btn-primary w-full submit-btn" style="margin-top: 20px;" @click="claimUsername" :disabled="claiming">
+            <span v-if="claiming" class="mini-spinner-inline" />
+            <span v-else>Update Profile Settings · Free</span>
+          </k-button>
+        </div>
+      </div>
 
-      <!-- Advanced Actions -->
-      <k-block-title>Advanced</k-block-title>
-      <k-list strongIos insetIos class="m-0 mb-12">
-        <k-list-button @click="clearCacheAndResync" style="color: var(--text-secondary); font-weight: 600;">Clear Cache & Resync</k-list-button>
-        <k-list-button @click="doLogout" style="color: var(--danger); font-weight: 700;">Sign Out of Wallet</k-list-button>
-      </k-list>
+      <!-- Logout and Clear Cache section (iOS Native style) -->
+      <div style="text-align: center; margin-top: 36px; padding: 0 20px;">
+        <k-button @click="clearCacheAndResync" style="max-width: 220px; background: #555555; border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto 20px; width: 100%;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+          Clear Cache & Resync
+        </k-button>
+
+        <k-button @click="doLogout" style="max-width: 220px; background: #FF3B30; border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto; width: 100%; box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2);" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+          Sign Out of Wallet
+        </k-button>
+      </div>
     </div>
     
     <!-- Transaction Pending Overlay -->
@@ -223,15 +218,6 @@ import {
   Button as kButton,
   Segmented as kSegmented,
   SegmentedButton as kSegmentedButton,
-  Block as kBlock,
-  BlockTitle as kBlockTitle,
-  BlockFooter as kBlockFooter,
-  Card as kCard,
-  List as kList,
-  ListItem as kListItem,
-  ListInput as kListInput,
-  Range as kRange,
-  ListButton as kListButton
 } from 'konsta/vue';
 import { useAuthStore } from '@/stores/auth';
 import { useUIStore } from '@/stores/ui';
@@ -266,15 +252,15 @@ const customUsername = ref('');
 const minStamps = ref(10);
 
 const canChange = computed(() => {
-  if (!currentProfile.value?.timestamp) return true;
-  return Date.now() - (currentProfile.value.timestamp * 1000) > 30 * 24 * 60 * 60 * 1000;
+  if (!currentProfile.value?.updatedAt) return true;
+  return Date.now() - currentProfile.value.updatedAt > 30 * 24 * 60 * 60 * 1000;
 });
 const hasClaimedOnce = computed(() => {
   return !!(currentProfile.value && currentProfile.value.name);
 });
 const nextChangeDate = computed(() => {
-  if (!currentProfile.value?.timestamp) return '';
-  return new Date((currentProfile.value.timestamp * 1000) + 30 * 24 * 60 * 60 * 1000)
+  if (!currentProfile.value?.updatedAt) return '';
+  return new Date(currentProfile.value.updatedAt + 30 * 24 * 60 * 60 * 1000)
     .toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 });
 
@@ -339,7 +325,7 @@ async function claimUsername() {
         await indexerService.syncAllMerchants();
         const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
         const found = await db.merchants.get(normAddress);
-        if (found && (found.timestamp * 1000) >= timestamp - 60000) { // allow a bit of clock skew
+        if (found && found.timestamp >= timestamp - 60000) { // allow a bit of clock skew
           txState.countdown = 0;
         }
       }
