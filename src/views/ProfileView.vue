@@ -78,7 +78,7 @@
           <div class="claim-section">
             <k-button @click="claimUsername" class="nim-btn-primary w-full submit-btn mt-6" style="padding: 24px; font-size: 1.1rem; letter-spacing: 0.02em;" :disabled="txState.isPending">
               <span v-if="txState.isPending" class="spinner" />
-              <span v-else>Claim Store Branding · 1 Luna</span>
+              <span v-else>{{ auth.isMerchantMode ? 'Claim Store Branding · 1 Luna' : 'Claim Username · 1 Luna' }}</span>
             </k-button>
             <p class="cost-note mt-2" style="font-size: 0.75rem; color: var(--text-secondary); text-align: center;">Broadcasts a 1 Luna (~0.00001 NIM) transaction on-chain.</p>
           </div>

@@ -117,14 +117,15 @@ class WalletAdapter {
       try {
         let result;
         if (txDetails.extraData) {
-          const dataHex = typeof txDetails.extraData === 'string' 
-            ? txDetails.extraData 
-            : bytesToHex(txDetails.extraData);
+          // The Hub uses Uint8Array, but Nimiq Pay expects a standard UTF-8 string for data
+          const dataString = typeof txDetails.extraData === 'string'
+            ? txDetails.extraData
+            : new TextDecoder().decode(txDetails.extraData);
             
           result = await this._sdk.sendBasicTransactionWithData({
             recipient: request.recipient,
             value: request.value,
-            data: dataHex
+            data: dataString
           });
         } else {
           result = await this._sdk.sendBasicTransaction({
