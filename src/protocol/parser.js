@@ -5,14 +5,45 @@ export function parseTransactionData(dataString) {
   if (!dataString) return null;
 
   let text = typeof dataString === 'string' ? dataString.trim() : '';
+  let bytes = null;
   
-  // Check if it's hex, and decode to UTF-8 text
+  // Check if it's hex, and parse into bytes
   if (/^[0-9a-fA-F]+$/.test(text)) {
     try {
-      const bytes = new Uint8Array(text.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+      bytes = new Uint8Array(text.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
       text = new TextDecoder().decode(bytes);
     } catch (e) {
       // Ignore and keep as-is if it's not valid hex utf-8
+    }
+  }
+
+  // Binary Protocol Formats (First byte indicates type)
+  if (bytes && bytes.length > 0) {
+    if (bytes[0] === 0x01 && bytes.length >= 11) {
+      // FlashBuy Binary Format
+      // [0] = 0x01
+      // [1..4] = CampID Hash (4 bytes)
+      // [5..8] = Expiry Unix Seconds (4 bytes, Uint32BE)
+      // [9..10] = Target Count (2 bytes, Uint16BE)
+      // [11..] = UTF-8 Label
+      
+      const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      const campIdHashBytes = bytes.slice(1, 5);
+      const campIdHex = Array.from(campIdHashBytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      const expiry = view.getUint32(5, false); // Big-endian
+      const targetCount = view.getUint16(9, false); // Big-endian
+      const labelBytes = bytes.slice(11);
+      const label = new TextDecoder().decode(labelBytes);
+
+      return {
+        type: 'flashbuy',
+        merchant: '', // Will be matched by tx.from in Indexer
+        campId: `CAMP-${campIdHex}`,
+        targetCount: targetCount,
+        expiry: expiry * 1000, // Convert back to ms
+        label: label,
+        timestamp: 0 // Inferred from block
+      };
     }
   }
 
@@ -157,4 +188,24 @@ export function parseTransactionData(dataString) {
 export function generateRulePayload({ type, target, label, unit, value }) {
   const targetStr = unit === 'NIM' ? `${target}NIM` : `${target}`;
   return `RULE|${type}|${targetStr}|${value || ''}|${label || ''}`;
+}
+
+export function packFlashBuy(campIdHashBytes, expirySec, targetCount, label) {
+  const labelBytes = new TextEncoder().encode(label);
+  const totalLength = 1 + 4 + 4 + 2 + labelBytes.length;
+  
+  if (totalLength > 64) {
+    throw new Error(`Payload too large (${totalLength} bytes). Max 64 bytes.`);
+  }
+
+  const payload = new Uint8Array(totalLength);
+  const view = new DataView(payload.buffer);
+
+  payload[0] = 0x01; // Prefix
+  payload.set(campIdHashBytes.slice(0, 4), 1); // 4-byte ID
+  view.setUint32(5, expirySec, false); // Big-endian
+  view.setUint16(9, targetCount, false); // Big-endian
+  payload.set(labelBytes, 11);
+
+  return payload;
 }

@@ -29,14 +29,14 @@
     <!-- FTUE Full-Screen Onboarding Explainer Overlay (Royal Match style) -->
     <Teleport to="body">
       <div v-if="!loading && showOnboardingFTUE" class="ftue-overlay">
-        <!-- Box-shadow cutout: this single element IS the dark overlay.
-             The huge spread box-shadow paints darkness around it while
-             the element's own bounds stay transparent, creating a true cutout hole. -->
+        <!-- Standard dark overlay behind the dialog -->
+        <div class="ftue-backdrop"></div>
+        
+        <!-- Highlighted area for the profile tab -->
         <div 
           class="ftue-highlight" 
           @click="$router.push('/customer/profile')"
         >
-          <!-- Bouncy pointer finger pointing at the Profile button -->
           <div class="ftue-arrow">👇</div>
         </div>
 
@@ -134,8 +134,29 @@
         />
 
         <!-- Footer: not-ready -->
-        <div v-if="!stamp.isReady" class="not-ready-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
-          <p class="perk-remaining" style="margin: 0; text-align: left;">
+        <div v-if="!stamp.isReady" class="not-ready-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; position: relative;">
+          <!-- Payment Pending Overlay -->
+          <div v-if="stamp.txState && (stamp.txState.isPending || stamp.txState.error)" class="payment-processing-overlay">
+            <div v-if="stamp.txState.error" class="payment-processing-content error-state">
+              <span style="font-size: 1.2rem;">❌</span>
+              <div>
+                <div class="processing-title text-danger">Payment Failed</div>
+                <div class="processing-subtitle">{{ stamp.txState.error }}</div>
+              </div>
+              <k-button class="nim-btn-secondary" style="height: 24px; padding: 0 8px; font-size: 0.7rem;" @click="stamp.txState.error = null; stamp.txState.isPending = false">Dismiss</k-button>
+            </div>
+            <div v-else class="payment-processing-content">
+              <svg width="24" height="24" viewBox="0 0 24 24" class="nimiq-hex-loader nimiq-hex-loader--spinning" style="color: var(--nim-gold); flex-shrink: 0;">
+                <path class="loading-big-hex" d="M22 12l-5 8.66H7L2 12l5-8.66h10L22 12z" stroke="currentColor" stroke-width="2" fill="none" />
+                <path class="loading-small-hex" d="M17 12l-2.5 4.33h-5L7 12l2.5-4.33h5L17 12z" fill="currentColor" />
+              </svg>
+              <div>
+                <div class="processing-title">Processing Payment...</div>
+                <div class="processing-subtitle">Waiting for confirmation (~{{ stamp.txState.countdown }}s)</div>
+              </div>
+            </div>
+          </div>
+          <p class="perk-remaining" style="margin: 0; text-align: left;" :style="{ opacity: stamp.txState && stamp.txState.isPending ? '0.3' : '1' }">
             <span v-if="stamp.ruleType === 'VOLUME'">
               {{ (stamp.target - Math.min(stamp.count, stamp.target)).toFixed(1).replace('.0','') }} NIM left to spend
             </span>
@@ -148,6 +169,7 @@
             class="nim-btn-primary"
             style="width: auto; min-width: 90px; padding: 4px 14px; font-size: 0.8rem; height: 30px; line-height: 1;"
             @click="initiatePayment(stamp)"
+            :disabled="stamp.txState && stamp.txState.isPending"
           >
             Pay
           </k-button>
@@ -310,6 +332,15 @@ async function confirmPayment() {
     const stamp = activePaymentStamp.value;
     activePaymentStamp.value = null; // Close popup
     
+    // Initialize txState if missing
+    if (!stamp.txState) {
+      stamp.txState = { isPending: false, countdown: 0, error: null, interval: null };
+    }
+    
+    stamp.txState.isPending = true;
+    stamp.txState.error = null;
+    stamp.txState.countdown = 60;
+    
     // Nimiq Hub checkout expects Luna (1 NIM = 100,000 Luna)
     const amountInLuna = amountInNim * 1e5;
     
@@ -319,19 +350,51 @@ async function confirmPayment() {
     });
     
     // Nimiq Pay transactions go to mempool and may take time to confirm.
-    // Start background polling for network confirmation.
-    let attempts = 0;
-    const pollInterval = setInterval(async () => {
-      attempts++;
-      await refreshData();
-      // Stop polling after 60 seconds (6 attempts * 10 seconds = 60s)
-      if (attempts >= 6) clearInterval(pollInterval);
-    }, 10000); // Check every 10 seconds
+    // Start background polling for network confirmation via a countdown
+    const initialCount = stamp.count;
+    
+    stamp.txState.interval = setInterval(async () => {
+      stamp.txState.countdown--;
+      
+      // Poll indexer every 10 seconds
+      if (stamp.txState.countdown % 10 === 0 && stamp.txState.countdown > 0) {
+        await refreshData();
+        // Check if this specific stamp was updated
+        const updatedStamp = stampData.value.find(s => s.merchant === stamp.merchant);
+        if (updatedStamp && updatedStamp.count > initialCount) {
+          stamp.txState.countdown = 0; // Success!
+        }
+      }
+
+      if (stamp.txState.countdown <= 0) {
+        clearInterval(stamp.txState.interval);
+        stamp.txState.interval = null;
+        
+        if (stamp.txState.countdown === 0) {
+          // Success state handled by UI reactivity (count increases, UI updates)
+          ui.showToast('Payment confirmed! Stamp added. 🎉');
+          stamp.txState.isPending = false;
+        } else {
+          stamp.txState.error = "Confirmation is taking longer than expected.";
+        }
+      }
+    }, 1000);
     
     // Immediate refresh attempt
     await refreshData();
   } catch (err) {
     console.warn('Payment failed/cancelled', err);
+    if (activePaymentStamp.value) {
+      // If payment failed before closing popup, just alert
+      ui.showToast('Payment failed or was cancelled.');
+    } else {
+      // If payment failed after popup closed (e.g. signature rejection), find the stamp and update state
+      const stamp = stampData.value.find(s => s.txState && s.txState.isPending);
+      if (stamp) {
+        stamp.txState.error = err.message || 'Payment cancelled.';
+        if (stamp.txState.interval) clearInterval(stamp.txState.interval);
+      }
+    }
   }
 }
 
@@ -627,27 +690,29 @@ async function refreshData() {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* No background here — the highlight element itself casts the dark overlay */
   pointer-events: none;
 }
+.ftue-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
 .ftue-highlight {
-  /* Positioned cutout hole over the Profile tab (bottom-right, 20% width, 68px high) */
-  position: fixed;
+  position: absolute;
   bottom: 0;
   right: 0;
   width: 20%;
   height: 68px;
   border-radius: 10px 10px 0 0;
-  box-sizing: border-box;
-  /* The huge spread box-shadow IS the dark overlay for the rest of the screen.
-     rgba(0,0,0,0.85) at 9999px spread fills everything outside this element. */
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85);
-  /* Gold animated border on the cutout itself */
   border: 3.5px solid var(--nim-gold);
   animation: pulseHighlight 1s infinite alternate;
   pointer-events: auto;
   cursor: pointer;
   z-index: 10001;
+  background: rgba(233, 178, 19, 0.1);
 }
 .ftue-arrow {
   position: absolute;

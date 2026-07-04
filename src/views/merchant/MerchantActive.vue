@@ -14,7 +14,10 @@
     <!-- FTUE Full-Screen Onboarding Explainer Overlay (Royal Match style) -->
     <Teleport to="body">
       <div v-if="!loading && showOnboardingFTUE" class="ftue-overlay">
-        <!-- Box-shadow cutout hole over the Profile tab -->
+        <!-- Standard dark overlay behind the dialog -->
+        <div class="ftue-backdrop"></div>
+
+        <!-- Highlighted area over the Profile tab -->
         <div 
           class="ftue-highlight" 
           @click="$router.push('/merchant/profile')"
@@ -600,21 +603,27 @@ onUnmounted(() => {
   justify-content: center;
   pointer-events: none;
 }
+.ftue-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
 .ftue-highlight {
-  position: fixed;
+  position: absolute;
   bottom: 0;
   right: 0;
   width: 20%;
   height: 68px;
   border-radius: 10px 10px 0 0;
-  box-sizing: border-box;
-  /* The huge spread box-shadow IS the dark overlay outside this cutout */
-  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.85);
   border: 3.5px solid var(--nim-gold);
   animation: pulseHighlight 1s infinite alternate;
   pointer-events: auto;
   cursor: pointer;
   z-index: 10001;
+  background: rgba(233, 178, 19, 0.1);
 }
 .ftue-arrow {
   position: absolute;

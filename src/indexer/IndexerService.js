@@ -251,16 +251,24 @@ export class IndexerService extends EventTarget {
           return; // Skip counting older transactions
         }
 
-        // Exclude coordinates or non-payment payloads from standard stamp counters
-        if (!tx.data || tx.data.length === 0) {
-          if (rule.type === 'COUNT') {
-            stampRecord.count += 1;
-          } else if (rule.type === 'VOLUME') {
-            stampRecord.count += (tx.value / 100000); 
+        // Parse extraData to ensure we don't count system control messages as stamp payments
+        const parsedData = parseTransactionData(tx.data);
+        const isSystemMsg = parsedData !== null;
+
+        if (!isSystemMsg) {
+          const minSpend = parseFloat(rule.value) || 0;
+          const amountNim = tx.value / 1e5; // Convert Luna to NIM
+
+          if (amountNim >= minSpend) {
+            if (rule.type === 'COUNT') {
+              stampRecord.count += 1;
+            } else if (rule.type === 'VOLUME') {
+              stampRecord.count += amountNim; 
+            }
+            stampRecord.last_updated = tx.timestamp;
+            // Dexie automatically infers the [user+merchant] compound key from the object properties
+            await db.stamps.put(stampRecord);
           }
-          stampRecord.last_updated = tx.timestamp;
-          // Dexie automatically infers the [user+merchant] compound key from the object properties
-          await db.stamps.put(stampRecord);
         }
       }
     }
