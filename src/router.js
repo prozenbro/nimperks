@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 import LoginView from './views/LoginView.vue';
 
 const routes = [
@@ -35,4 +36,12 @@ const routes = [
 export const router = createRouter({
   history: createWebHistory(),
   routes
+});
+
+router.beforeEach((to, from) => {
+  const auth = useAuthStore();
+  if (!auth.address && to.path !== '/') {
+    return '/';
+  }
+  return true;
 });

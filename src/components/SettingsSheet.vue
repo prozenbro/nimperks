@@ -7,7 +7,7 @@
   >
     <k-navbar title="Settings">
       <template #right>
-        <k-link navbar @click="ui.isSettingsOpen = false" style="font-weight: 600; color: var(--nim-gold);">Done</k-link>
+        <span @click="ui.isSettingsOpen = false" style="font-weight: 600; color: var(--nim-gold); cursor: pointer; padding-right: 8px;">Done</span>
       </template>
     </k-navbar>
 
@@ -40,14 +40,22 @@
       </k-list>
 
       <!-- Danger zone -->
-      <k-block class="mt-4">
-        <k-button
-          class="w-full"
-          @click="doLogout"
-          style="background: rgba(255,69,58,0.12); color: var(--danger); border: 0.5px solid rgba(255,69,58,0.25);"
-        >
-          Disconnect Wallet
-        </k-button>
+      <k-block class="mt-4" style="padding-bottom: 24px;">
+        <div style="display: flex; gap: 12px; width: 100%;">
+          <k-button
+            style="flex: 1; background: rgba(85,85,85,0.12); color: #555555; border: 0.5px solid rgba(85,85,85,0.25);"
+            @click="clearCacheAndResync"
+          >
+            Clear Cache
+          </k-button>
+
+          <k-button
+            style="flex: 1; background: #FF3B30; color: #FFFFFF; border: none; box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2);"
+            @click="doLogout"
+          >
+            Sign Out
+          </k-button>
+        </div>
       </k-block>
     </div>
   </k-sheet>
@@ -68,10 +76,26 @@ import {
 } from 'konsta/vue';
 import { useAuthStore } from '@/stores/auth';
 import { useUIStore } from '@/stores/ui';
+import { db } from '@/db/schema';
 
 const auth = useAuthStore();
 const ui = useUIStore();
 const IS_TESTNET = import.meta.env.VITE_NIMIQ_NETWORK === 'testnet';
+
+async function clearCacheAndResync() {
+  if (confirm('This will clear your local app cache and resync data from the blockchain. Continue?')) {
+    try {
+      await db.sync_state.clear();
+      await db.transactions.clear();
+      await db.stamps.clear();
+      await db.campaigns.clear();
+      auth.logout();
+      window.location.reload();
+    } catch (err) {
+      console.error('Error clearing cache:', err);
+    }
+  }
+}
 
 function doLogout() {
   ui.isSettingsOpen = false;

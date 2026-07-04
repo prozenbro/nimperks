@@ -145,8 +145,13 @@
         </div>
       </div>
 
-      <!-- Logout section (iOS Native Red Destructive style) -->
+      <!-- Logout and Clear Cache section (iOS Native style) -->
       <div style="text-align: center; margin-top: 36px; padding: 0 20px;">
+        <!-- Clear Cache / Resync Button -->
+        <k-button @click="clearCacheAndResync" style="max-width: 220px; background: #555555; border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto 20px; width: 100%;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+          Clear Cache & Resync
+        </k-button>
+
         <k-button @click="doLogout" style="max-width: 220px; background: #FF3B30; border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto; width: 100%; box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2);" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
           Sign Out of Wallet
         </k-button>
@@ -275,6 +280,21 @@ async function claimUsername() {
     alert(e.message || 'Signature failed.');
   } finally {
     claiming.value = false;
+  }
+}
+
+async function clearCacheAndResync() {
+  if (confirm('This will clear your local app cache and resync data from the blockchain. Continue?')) {
+    try {
+      await db.sync_state.clear();
+      await db.transactions.clear();
+      await db.stamps.clear();
+      await db.campaigns.clear();
+      auth.logout();
+      window.location.reload();
+    } catch (err) {
+      console.error('Error clearing cache:', err);
+    }
   }
 }
 

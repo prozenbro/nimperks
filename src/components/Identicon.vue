@@ -4,6 +4,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue';
+import identiconSvg from '@nimiq/identicons/dist/identicons.min.svg?url';
 
 const props = defineProps({
   address: { type: String, default: null }
@@ -15,6 +16,7 @@ async function render() {
   if (!container.value || !props.address) return;
   try {
     const { default: Identicons } = await import('@nimiq/identicons');
+    Identicons.svgPath = identiconSvg;
     Identicons.render(props.address, container.value);
   } catch (e) {
     console.warn('[Identicon] Failed to render:', e);
