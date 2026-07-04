@@ -231,7 +231,8 @@ async function processAddress(raw) {
       // Always use normalised (no-space uppercase) address as the DB key
       merchantAddress = parsed.address.replace(/\s+/g, '').toUpperCase();
 
-      const existingStamp = await db.stamps.where({ user: auth.address, merchant: merchantAddress }).first();
+      const normUser = auth.address.replace(/\s+/g, '').toUpperCase();
+      const existingStamp = await db.stamps.where({ user: normUser, merchant: merchantAddress }).first();
       if (existingStamp) return alert('This store is already in your list!');
 
       // 1. Save profile to db — keyed on normalised address
@@ -271,7 +272,8 @@ async function processAddress(raw) {
       }
       merchantAddress = clean;
 
-      const existingStamp = await db.stamps.where({ user: auth.address, merchant: merchantAddress }).first();
+      const normUser = auth.address.replace(/\s+/g, '').toUpperCase();
+      const existingStamp = await db.stamps.where({ user: normUser, merchant: merchantAddress }).first();
       if (existingStamp) return alert('This store is already in your list!');
 
       const existingProfile = await db.merchants.get(merchantAddress);
@@ -281,7 +283,8 @@ async function processAddress(raw) {
     }
 
     // Ensure stamps record exists — always with normalised merchant key
-    await db.stamps.put({ user: auth.address, merchant: merchantAddress, count: 0, last_updated: Date.now() });
+    const normUser = auth.address.replace(/\s+/g, '').toUpperCase();
+    await db.stamps.put({ user: normUser, merchant: merchantAddress, count: 0, last_updated: Date.now() });
     added.value = true;
   } catch (e) {
     console.error(e);

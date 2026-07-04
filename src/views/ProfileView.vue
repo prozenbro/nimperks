@@ -252,7 +252,8 @@ const nextChangeDate = computed(() => {
 
 async function loadProfile() {
   if (auth.address) {
-    currentProfile.value = await db.merchants.get(auth.address);
+    const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+    currentProfile.value = await db.merchants.get(normAddress);
     if (currentProfile.value) {
       minStamps.value = currentProfile.value.minStamps !== undefined ? currentProfile.value.minStamps : 10;
     }
@@ -279,7 +280,8 @@ async function claimUsername() {
   if (claimAttemptsLeft.value <= 0) return alert('No attempts remaining.');
 
   const owner = await db.merchants.where('name').equals(name).first();
-  if (owner && owner.address !== auth.address) {
+  const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+  if (owner && owner.address !== normAddress) {
     claimAttemptsLeft.value--;
     return alert('Username already taken. Try another.');
   }
@@ -307,7 +309,8 @@ async function claimUsername() {
       
       if (txState.countdown % 10 === 0 && txState.countdown > 0) {
         await indexerService.syncAllMerchants();
-        const found = await db.merchants.get(auth.address);
+        const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+        const found = await db.merchants.get(normAddress);
         if (found && found.timestamp >= timestamp - 60000) { // allow a bit of clock skew
           txState.countdown = 0;
         }

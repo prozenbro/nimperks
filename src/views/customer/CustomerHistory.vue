@@ -62,7 +62,8 @@ const redemptions = ref([]);
 onMounted(async () => {
   if (!auth.address) return (loading.value = false);
   try {
-    const all = await db.redemptions.where('user').equals(auth.address).reverse().sortBy('timestamp');
+    const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+    const all = await db.redemptions.where('user').equals(normAddress).reverse().sortBy('timestamp');
     const enhanced = [];
     for (const r of all) {
       const merchant = await db.merchants.get(r.merchant);

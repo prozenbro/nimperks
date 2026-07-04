@@ -308,7 +308,8 @@ function advanceFTUE() {
 
 async function checkOnboarding() {
   if (!auth.address) return;
-  const profile = await db.merchants.get(auth.address);
+  const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+  const profile = await db.merchants.get(normAddress);
   showOnboardingFTUE.value = !profile || !profile.signature || profile.name.startsWith('Customer ');
 }
 
@@ -432,7 +433,8 @@ function getShortAddress(address) {
 onMounted(async () => {
   if (!auth.address) return (loading.value = false);
   try {
-    const stamps = await db.stamps.where('user').equals(auth.address).toArray();
+    const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+    const stamps = await db.stamps.where('user').equals(normAddress).toArray();
     
     // Deduplicate stamps in case of older corrupt records, keeping highest count
     const uniqueStampsMap = new Map();
@@ -504,7 +506,8 @@ async function refreshData() {
   syncing.value = true;
   try {
     await indexerService.syncAllMerchants();
-    const stamps = await db.stamps.where('user').equals(auth.address).toArray();
+    const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+    const stamps = await db.stamps.where('user').equals(normAddress).toArray();
     
     // Deduplicate stamps in case of older corrupt records, keeping highest count
     const uniqueStampsMap = new Map();

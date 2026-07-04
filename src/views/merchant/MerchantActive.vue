@@ -225,8 +225,9 @@ const flashbuyCount = computed(() => campaigns.value.filter(c => c.type === 'FLA
 
 async function loadCampaigns() {
   if (!auth.address) return;
+  const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
   const all = await db.campaigns
-    .where('merchant').equals(auth.address)
+    .where('merchant').equals(normAddress)
     .filter(c => c.status === 'active' || !c.status) // treat missing status as active
     .toArray();
   campaigns.value = all.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
@@ -237,16 +238,18 @@ async function loadCampaigns() {
 
 async function checkOnboarding() {
   if (!auth.address) return;
-  const profile = await db.merchants.get(auth.address);
+  const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+  const profile = await db.merchants.get(normAddress);
   showOnboardingFTUE.value = !profile || !profile.signature || profile.name.startsWith('Merchant ') || profile.name.startsWith('Store ');
 }
 
 async function generateStoreQR() {
   if (!auth.address) return;
-  profileData.value = await db.merchants.get(auth.address);
-  ruleData.value = await db.rules.where('merchant').equals(auth.address).first();
+  const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+  profileData.value = await db.merchants.get(normAddress);
+  ruleData.value = await db.rules.where('merchant').equals(normAddress).first();
 
-  let payload = `nimperks:${auth.address.replace(/\s+/g, '')}`;
+  let payload = `nimperks:${normAddress}`;
   // Removed off-chain signature payload generation
 
   // Ensure canvas is rendered before building QR

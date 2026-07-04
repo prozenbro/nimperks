@@ -118,7 +118,8 @@ let qrScanner = null;
 
 async function loadRecent() {
   if (!auth.address) return;
-  const all = await db.redemptions.where('merchant').equals(auth.address).reverse().sortBy('timestamp');
+  const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+  const all = await db.redemptions.where('merchant').equals(normAddress).reverse().sortBy('timestamp');
   recentRedemptions.value = all.slice(0, 5);
 }
 
@@ -149,7 +150,8 @@ async function processVoucher(text) {
   processState.value = 'validating';
   try {
     const result = validateVoucher(text);
-    if (!result.valid || result.merchantAddress !== auth.address) {
+    const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
+    if (!result.valid || result.merchantAddress !== normAddress) {
       throw new Error(result.reason || 'Invalid voucher for this store');
     }
     const voucherHash = text.substring(0, 20);
@@ -159,7 +161,7 @@ async function processVoucher(text) {
     // Optimistically write pending record
     await db.redemptions.put({
       hash: voucherHash,
-      merchant: auth.address,
+      merchant: normAddress,
       user: result.userAddress || '',
       reward: result.ruleType || 'Reward',
       timestamp: Math.floor(Date.now() / 1000),

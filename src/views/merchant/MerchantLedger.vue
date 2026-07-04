@@ -55,8 +55,9 @@ const redemptions = ref([]);
 
 onMounted(async () => {
   try {
+    const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
     const all = await db.redemptions
-      .where('merchant').equals(auth.address)
+      .where('merchant').equals(normAddress)
       .reverse().sortBy('timestamp');
     redemptions.value = all;
   } catch (e) { console.error(e); }
