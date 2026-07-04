@@ -102,8 +102,9 @@ export class IndexerService extends EventTarget {
     if (!parsed) return;
 
     if (type === 'campaigns') {
+      const normFrom = (tx.from || '').replace(/\s+/g, '').toUpperCase();
+      
       if (parsed.type === 'campaign') {
-        const normFrom = (tx.from || '').replace(/\s+/g, '').toUpperCase();
         if (normFrom === parsed.merchant) {
           await db.rules.put({
             merchant: parsed.merchant,
@@ -117,20 +118,42 @@ export class IndexerService extends EventTarget {
         }
       }
       
+      else if (parsed.type === 'rule') {
+        // Binary Rule (0x02) - replaces off-chain scanning!
+        // We save it both as the active rule and as a 'campaign' for the dashboard
+        await db.rules.put({
+          merchant: normFrom,
+          type: parsed.ruleType,
+          target: parsed.target,
+          reward: parsed.label,
+          label: parsed.label,
+          value: parsed.value || '', 
+          timestamp: tx.timestamp,
+        });
+        
+        await db.campaigns.put({
+          id: `RULE-${normFrom}`,
+          merchant: normFrom,
+          target: parsed.target,
+          label: parsed.label,
+          type: parsed.ruleType,
+          status: 'active',
+          timestamp: tx.timestamp
+        });
+      }
+      
       else if (parsed.type === 'flashbuy') {
-        const normFrom = (tx.from || '').replace(/\s+/g, '').toUpperCase();
-        if (normFrom === parsed.merchant) {
-           await db.campaigns.put({
-             id: parsed.campId,
-             merchant: parsed.merchant,
-             target: parsed.targetCount,
-             expiry: parsed.expiry,
-             label: parsed.label,
-             type: 'FLASHBUY',
-             status: 'active',
-             current_count: 0
-           });
-        }
+        await db.campaigns.put({
+          id: parsed.campId,
+          merchant: normFrom, // Binary format doesn't have merchant in payload, uses tx.from
+          target: parsed.targetCount,
+          expiry: parsed.expiry,
+          label: parsed.label,
+          type: 'FLASHBUY',
+          status: 'active',
+          current_count: 0,
+          timestamp: tx.timestamp
+        });
       }
 
       else if (parsed.type === 'flashbuy_join') {
@@ -143,11 +166,30 @@ export class IndexerService extends EventTarget {
       } 
       
       else if (parsed.type === 'close') {
-        const existing = await db.campaigns.get(parsed.campaignId);
-        if (existing) {
-          existing.status = 'closed';
-          await db.campaigns.put(existing);
+        // Binary Close (0x03)
+        // Check if it's closing a rule or a flashbuy
+        if (parsed.campaignId) {
+          const existing = await db.campaigns.get(parsed.campaignId);
+          if (existing && existing.merchant === normFrom) {
+            existing.status = 'closed';
+            await db.campaigns.put(existing);
+            
+            // If they closed their main Rule, clear it from rules DB too
+            if (parsed.campaignId === `RULE-${normFrom}`) {
+              await db.rules.delete(normFrom);
+            }
+          }
         }
+      }
+      
+      else if (parsed.type === 'profile') {
+        // Binary Profile (0x04)
+        await db.merchants.put({
+          address: normFrom,
+          name: parsed.name,
+          branch: parsed.branch,
+          timestamp: tx.timestamp
+        });
       }
     } 
     

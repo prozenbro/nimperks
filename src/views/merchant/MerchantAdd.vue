@@ -90,12 +90,13 @@
         <k-button
           id="btn-publish-loyalty"
           class="nim-btn-primary w-full submit-btn"
-          :disabled="publishing"
+          :disabled="txState.isPending"
           @click="publishLoyalty"
         >
-          <span v-if="publishing" class="spinner" />
-          <span v-else>Publish Perk · Free</span>
+          <span v-if="txState.isPending" class="spinner" />
+          <span v-else>Publish Perk · 1 Luna</span>
         </k-button>
+        <p class="cost-note">Broadcasts a 1 Luna (~0.00001 NIM) transaction on-chain.</p>
       </div>
     </div>
 
@@ -242,7 +243,7 @@ import {
 } from 'konsta/vue';
 import { wallet } from '@/protocol/walletAdapter';
 import { useAuthStore } from '@/stores/auth';
-import { generateRulePayload, packFlashBuy } from '@/protocol/parser';
+import { packRule, packFlashBuy } from '@/protocol/parser';
 import { indexerService } from '@/indexer/IndexerService';
 import { db } from '@/db/schema';
 import { bytesToHex } from '@/protocol/signature';
@@ -299,58 +300,60 @@ function showToast(msg, type = 'success') {
 async function publishLoyalty() {
   if (!ruleTarget.value) return showToast('Enter a target value.', 'error');
   if (!ruleLabel.value)  return showToast('Enter a reward label.', 'error');
-  publishing.value = true;
+  
+  txState.isPending = true;
+  txState.error = null;
+  txState.countdown = 60;
+  
   try {
     const timestamp = Date.now();
-    const cleanAddr = auth.address.replace(/\s+/g, '').toUpperCase();
-    // Message payload format: CAMPAIGN|{merchant}|{type}|{target}|{reward}|{timestamp}
-    const payload = `CAMPAIGN|${cleanAddr}|${ruleType.value}|${ruleTarget.value}|${ruleLabel.value}|${timestamp}`;
     
-    // Sign off-chain
-    const result = await wallet.signMessage(payload);
+    // Compress payload into a binary format < 64 bytes
+    const payloadBytes = packRule(
+      ruleType.value,
+      ruleTarget.value,
+      ruleMinSpend.value || 0,
+      ruleLabel.value
+    );
     
-    if (result && result.signature) {
-      const sigHex = bytesToHex(result.signature);
-      const pubHex = bytesToHex(result.signerPubKey);
+    // Broadcast on-chain using 1 Luna transaction
+    await wallet.sendTransaction({
+      recipient: CAMPAIGN_ADDRESS || auth.address,
+      value: 1, // 1 Luna
+      extraData: payloadBytes
+    });
+    
+    // Start confirmation countdown
+    txState.timerInterval = setInterval(async () => {
+      txState.countdown--;
       
-      // Save locally to IndexedDB rules & campaigns
-      await db.rules.put({
-        merchant: auth.address,
-        type: ruleType.value,
-        target: parseInt(ruleTarget.value, 10),
-        reward: ruleLabel.value,
-        label: ruleLabel.value,
-        value: ruleMinSpend.value ? String(ruleMinSpend.value) : '',
-        signature: sigHex,
-        pubKey: pubHex,
-        timestamp: timestamp
-      });
+      if (txState.countdown % 10 === 0 && txState.countdown > 0) {
+        await indexerService.syncAllMerchants();
+        // The indexer stores it in db.rules and db.campaigns with ID RULE-{merchant}
+        const cleanAddr = auth.address.replace(/\s+/g, '').toUpperCase();
+        const found = await db.campaigns.get(`RULE-${cleanAddr}`);
+        if (found && found.timestamp >= timestamp) {
+          txState.countdown = 0;
+        }
+      }
 
-      // Populate local campaign list
-      const campaignId = `CAMP-${auth.address.replace(/\s+/g, '').substring(2, 6)}-${timestamp.toString().substring(8)}`;
-      await db.campaigns.put({
-        id: campaignId,
-        merchant: auth.address,
-        type: ruleType.value,
-        target: parseInt(ruleTarget.value, 10),
-        value: ruleMinSpend.value ? String(ruleMinSpend.value) : '',
-        label: ruleLabel.value,
-        status: 'active',
-        timestamp: timestamp,
-        signature: sigHex,
-        pubKey: pubHex
-      });
+      if (txState.countdown <= 0) {
+        clearInterval(txState.timerInterval);
+        txState.timerInterval = null;
+        
+        if (txState.countdown === 0) {
+          showToast('Perk Campaign is now live on-chain!');
+          ruleTarget.value = ''; ruleLabel.value = ''; ruleMinSpend.value = '';
+        } else {
+          txState.error = "Confirmation took too long. It may still be processed shortly.";
+        }
+      }
+    }, 1000);
 
-      showToast('Campaign published (off-chain signature generated)!');
-      ruleTarget.value = ''; ruleLabel.value = ''; ruleMinSpend.value = '';
-    } else {
-      throw new Error('Signing cancelled or failed.');
-    }
   } catch (e) {
     console.error(e);
-    showToast(e.message || 'Signature failed.', 'error');
-  } finally {
-    publishing.value = false;
+    txState.error = e.message || 'Transaction failed or was cancelled.';
+    if (txState.timerInterval) clearInterval(txState.timerInterval);
   }
 }
 

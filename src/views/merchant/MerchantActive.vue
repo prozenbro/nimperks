@@ -178,6 +178,7 @@ import { wallet } from '@/protocol/walletAdapter';
 import { useRouter } from 'vue-router';
 import QRCode from 'qrcode';
 import ExplainerModal from '@/components/ExplainerModal.vue';
+import { packClose } from '@/protocol/parser';
 
 const auth = useAuthStore();
 const ui = useUIStore();
@@ -246,16 +247,7 @@ async function generateStoreQR() {
   ruleData.value = await db.rules.where('merchant').equals(auth.address).first();
 
   let payload = `nimperks:${auth.address.replace(/\s+/g, '')}`;
-  
-  if (profileData.value && profileData.value.signature) {
-    const p = profileData.value;
-    payload += `|PROFILE:${p.name}:${p.branch || 'Main'}:${p.minStamps ?? 10}:${p.counter}:${p.timestamp}:${p.signature}:${p.pubKey}`;
-  }
-  
-  if (ruleData.value && ruleData.value.signature) {
-    const r = ruleData.value;
-    payload += `|RULE:${r.type}:${r.target}:${r.reward}:${r.value || ''}:${r.timestamp}:${r.signature}:${r.pubKey}`;
-  }
+  // Removed off-chain signature payload generation
 
   // Ensure canvas is rendered before building QR
   await new Promise(r => setTimeout(r, 100));
@@ -309,12 +301,31 @@ async function shareQR() {
   }
 }
 
+const txState = reactive({ isPending: false, error: null, countdown: 0, timerInterval: null });
+
 async function closeCampaign(campId) {
-  if (!confirm('Deactivate this campaign on-chain?')) return;
+  if (!confirm('Deactivate this campaign on-chain for 1 Luna?')) return;
+  
   try {
-    const extra = new TextEncoder().encode(`CLOSE|${campId}`);
+    const cleanCampId = campId.replace('CAMP-', '').replace('RULE-', '');
+    // Hash the ID slightly differently since we are providing it directly, but for now we just try to parse the hex or encode it
+    // Actually, campId for FlashBuy is a hash hex already. For RULE it's the address.
+    const dataToHash = new TextEncoder().encode(cleanCampId);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataToHash);
+    const hashArray = new Uint8Array(hashBuffer);
+    
+    const extra = packClose(hashArray);
     await wallet.sendTransaction({ recipient: CAMPAIGN_ADDRESS || auth.address, value: 1, extraData: extra });
-    await loadCampaigns();
+    
+    alert('Transaction sent! The campaign will be closed once mined (~1 min).');
+    
+    // Optimistic local update
+    const existing = await db.campaigns.get(campId);
+    if (existing) {
+      existing.status = 'closed';
+      await db.campaigns.put(existing);
+      await loadCampaigns();
+    }
   } catch (err) {
     console.error(err);
     alert('Failed to close campaign.');
@@ -605,7 +616,10 @@ onUnmounted(() => {
 }
 .ftue-backdrop {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);

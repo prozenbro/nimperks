@@ -75,10 +75,13 @@
           <p v-if="claimAttemptsLeft < 6" class="attempts-warn">
             {{ claimAttemptsLeft }} attempts remaining
           </p>
-          <k-button class="nim-btn-primary w-full submit-btn" style="margin-top: 20px;" @click="claimUsername" :disabled="claiming">
-            <span v-if="claiming" class="mini-spinner-inline" />
-            <span v-else>Claim Username · Free</span>
-          </k-button>
+          <div class="claim-section">
+            <k-button @click="claimUsername" class="nim-btn-primary w-full submit-btn mt-6" style="padding: 24px; font-size: 1.1rem; letter-spacing: 0.02em;" :disabled="txState.isPending">
+              <span v-if="txState.isPending" class="spinner" />
+              <span v-else>Claim Store Branding · 1 Luna</span>
+            </k-button>
+            <p class="cost-note mt-2" style="font-size: 0.75rem; color: var(--text-secondary); text-align: center;">Broadcasts a 1 Luna (~0.00001 NIM) transaction on-chain.</p>
+          </div>
         </div>
       </div>
 
@@ -147,7 +150,6 @@
 
       <!-- Logout and Clear Cache section (iOS Native style) -->
       <div style="text-align: center; margin-top: 36px; padding: 0 20px;">
-        <!-- Clear Cache / Resync Button -->
         <k-button @click="clearCacheAndResync" style="max-width: 220px; background: #555555; border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto 20px; width: 100%;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
           Clear Cache & Resync
         </k-button>
@@ -157,6 +159,40 @@
         </k-button>
       </div>
     </div>
+    
+    <!-- Transaction Pending Overlay -->
+    <Transition name="ftue-fade">
+      <div v-if="txState.isPending || txState.error" class="payment-overlay">
+        <div class="payment-card card-premium anim-scale-in">
+          <div v-if="txState.error">
+            <div class="payment-icon" style="font-size: 3rem;">❌</div>
+            <h3 class="payment-title" style="color: var(--danger);">Transaction Failed</h3>
+            <p class="payment-desc mt-2">{{ txState.error }}</p>
+            <k-button class="nim-btn-secondary mt-4 w-full" @click="txState.error = null; txState.isPending = false;">Dismiss</k-button>
+          </div>
+          <div v-else-if="txState.countdown === 0">
+            <div class="payment-icon" style="font-size: 3rem; animation: bounce 1s infinite;">✅</div>
+            <h3 class="payment-title" style="color: var(--success);">Confirmed!</h3>
+            <p class="payment-desc mt-2">Your branding is now live on the blockchain.</p>
+            <k-button class="nim-btn-primary mt-4 w-full" @click="txState.isPending = false">Done</k-button>
+          </div>
+          <div v-else>
+            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+              <svg width="44" height="44" viewBox="0 0 24 24" class="nimiq-hex-loader nimiq-hex-loader--spinning" style="color: var(--nim-gold);">
+                <path class="loading-big-hex" d="M22 12l-5 8.66H7L2 12l5-8.66h10L22 12z" stroke="currentColor" stroke-width="2" fill="none" />
+                <path class="loading-small-hex" d="M17 12l-2.5 4.33h-5L7 12l2.5-4.33h5L17 12z" fill="currentColor" />
+              </svg>
+            </div>
+            <h3 class="payment-title">Pending Network Confirmation</h3>
+            <p class="payment-desc mt-2">Waiting for the transaction to be mined.</p>
+            <div class="countdown-timer mt-4">
+              <span class="countdown-num">{{ txState.countdown }}</span>
+              <span class="countdown-unit">seconds remaining</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -173,10 +209,11 @@ import { useAuthStore } from '@/stores/auth';
 import { useUIStore } from '@/stores/ui';
 import Identicon from '@/components/Identicon.vue';
 import { db } from '@/db/schema';
-import { generateSuggestedUsername } from '@/utils/usernameGenerator';
 import { wallet } from '@/protocol/walletAdapter';
 import { indexerService } from '@/indexer/IndexerService';
-import { bytesToHex } from '@/protocol/signature';
+import { packProfile } from '@/protocol/parser';
+import { generateSuggestedUsername } from '@/utils/usernameGenerator';
+import { reactive } from 'vue';
 
 const auth = useAuthStore();
 const ui = useUIStore();
@@ -233,6 +270,8 @@ function regenerateSuggestion() {
   customUsername.value = generateSuggestedUsername(seed.value, attempts.value);
 }
 
+const txState = reactive({ isPending: false, error: null, countdown: 0, timerInterval: null });
+
 async function claimUsername() {
   const name = customUsername.value.trim();
   if (name.length < 3) return alert('Username must be at least 3 characters.');
@@ -245,41 +284,52 @@ async function claimUsername() {
     return alert('Username already taken. Try another.');
   }
 
-  claiming.value = true;
+  txState.isPending = true;
+  txState.error = null;
+  txState.countdown = 60;
+  
   try {
-    const counter = currentProfile.value ? (currentProfile.value.counter || 0) + 1 : 1;
-    const timestamp = Date.now();
     const branchName = currentProfile.value ? (currentProfile.value.branch || 'Main') : 'Main';
-    const payload = `PROFILE|${name}|${branchName}|${minStamps.value}|${counter}|${timestamp}`;
+    const payloadBytes = packProfile(name, branchName);
     
-    // Request wallet to sign message off-chain
-    const result = await wallet.signMessage(payload);
+    // Broadcast on-chain using 1 Luna
+    await wallet.sendTransaction({
+      recipient: PROFILE_ADDRESS || auth.address,
+      value: 1, // 1 Luna
+      extraData: payloadBytes
+    });
     
-    if (result && result.signature) {
-      // Save profile locally with signature
-      const profileData = {
-        address: auth.address,
-        name: name,
-        branch: branchName,
-        minStamps: minStamps.value,
-        counter: counter,
-        timestamp: timestamp,
-        signature: bytesToHex(result.signature),
-        pubKey: bytesToHex(result.signerPubKey)
-      };
+    const timestamp = Date.now();
+    
+    // Start confirmation countdown
+    txState.timerInterval = setInterval(async () => {
+      txState.countdown--;
       
-      await db.merchants.put(profileData);
-      currentProfile.value = profileData;
-      
-      alert('Username claimed successfully (off-chain signature verified)!');
-    } else {
-      throw new Error('Signing cancelled or failed.');
-    }
+      if (txState.countdown % 10 === 0 && txState.countdown > 0) {
+        await indexerService.syncAllMerchants();
+        const found = await db.merchants.get(auth.address);
+        if (found && found.timestamp >= timestamp - 60000) { // allow a bit of clock skew
+          txState.countdown = 0;
+        }
+      }
+
+      if (txState.countdown <= 0) {
+        clearInterval(txState.timerInterval);
+        txState.timerInterval = null;
+        
+        if (txState.countdown === 0) {
+          alert('Branding is now live on-chain!');
+          await loadProfile();
+        } else {
+          txState.error = "Confirmation took too long. It may still be processed shortly.";
+        }
+      }
+    }, 1000);
+
   } catch (e) {
     console.error(e);
-    alert(e.message || 'Signature failed.');
-  } finally {
-    claiming.value = false;
+    txState.error = e.message || 'Transaction failed.';
+    if (txState.timerInterval) clearInterval(txState.timerInterval);
   }
 }
 

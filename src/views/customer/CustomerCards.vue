@@ -694,7 +694,10 @@ async function refreshData() {
 }
 .ftue-backdrop {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
