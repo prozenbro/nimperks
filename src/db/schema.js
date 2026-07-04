@@ -73,6 +73,19 @@ db.version(5).stores({
   await tx.table('sync_state').clear();
 });
 
+// v6: clear sync_state again after fixing parser logic for FLASHBUY/CAMPAIGN payloads
+db.version(6).stores({
+  merchants: 'address, name, branch',
+  transactions: 'hash, from, to, type, data, timestamp',
+  stamps: '[user+merchant], user, merchant, count, last_updated',
+  campaigns: 'id, merchant, target, expiry, current_count',
+  rules: 'merchant, type, target, reward, label, value',
+  sync_state: 'address',
+  redemptions: 'hash, merchant, user, reward, timestamp, status'
+}).upgrade(async tx => {
+  await tx.table('sync_state').clear();
+});
+
 if (typeof window !== 'undefined') {
   db.on('versionchange', () => {
     db.close();
