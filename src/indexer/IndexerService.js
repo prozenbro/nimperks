@@ -184,13 +184,16 @@ export class IndexerService extends EventTarget {
       
       else if (parsed.type === 'profile') {
         // Binary Profile (0x04)
-        await db.merchants.put({
-          address: normFrom,
-          name: parsed.name,
-          branch: parsed.branch,
-          minStamps: parsed.minStamps,
-          timestamp: tx.timestamp
-        });
+        const existing = await db.merchants.get(normFrom);
+        if (!existing || existing.timestamp <= tx.timestamp) {
+          await db.merchants.put({
+            address: normFrom,
+            name: parsed.name,
+            branch: parsed.branch,
+            minStamps: parsed.minStamps,
+            timestamp: tx.timestamp
+          });
+        }
       }
     } 
     
@@ -240,10 +243,14 @@ export class IndexerService extends EventTarget {
     const txs = await rpc.getTransactionsByAddress(address, SYNC_PAGE_SIZE, null);
     if (!txs || txs.length === 0) return;
 
-    let processed = 0;
+    const newTxs = [];
     for (const tx of txs) {
       if (tx.hash === state.newest_seen_tx_hash) break;
-      
+      newTxs.unshift(tx); // prepend to reverse order
+    }
+
+    let processed = 0;
+    for (const tx of newTxs) {
       await this.processTransaction(tx, address);
       processed++;
     }
