@@ -168,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive } from 'vue';
 import { Navbar as kNavbar, Link as kLink, Button as kButton } from 'konsta/vue';
 import { db } from '@/db/schema';
 import { useAuthStore } from '@/stores/auth';
