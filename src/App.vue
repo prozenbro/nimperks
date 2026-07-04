@@ -46,8 +46,8 @@ function stopSync() {
   }
 }
 
-watch([() => auth.address, () => auth.isMerchantMode], ([address, isMerchant]) => {
-  if (address && !isMerchant) {
+watch(() => auth.address, (address) => {
+  if (address) {
     startSync();
   } else {
     stopSync();
