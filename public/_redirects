@@ -1,1 +1,3 @@
-/*    /index.html   200
+/rpc-mainnet* https://rpc-mainnet.nimiqscan.com/:splat 200
+/rpc-testnet* https://rpc-testnet.nimiqscan.com/:splat 200
+/* /index.html 200

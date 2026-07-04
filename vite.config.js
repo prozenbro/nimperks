@@ -12,4 +12,18 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  server: {
+    proxy: {
+      '/rpc-mainnet': {
+        target: 'https://rpc-mainnet.nimiqscan.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/rpc-mainnet/, '')
+      },
+      '/rpc-testnet': {
+        target: 'https://rpc-testnet.nimiqscan.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/rpc-testnet/, '')
+      }
+    }
+  }
 });

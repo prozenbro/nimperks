@@ -1,6 +1,6 @@
 const IS_TESTNET = import.meta.env.VITE_NIMIQ_NETWORK === 'testnet';
-const DEFAULT_ENDPOINT = IS_TESTNET ? 'https://rpc-testnet.nimiqscan.com' : 'https://rpc-mainnet.nimiqscan.com';
-const TESTNET_ENDPOINT = 'https://rpc-testnet.nimiqscan.com';
+const DEFAULT_ENDPOINT = IS_TESTNET ? '/rpc-testnet' : '/rpc-mainnet';
+const TESTNET_ENDPOINT = '/rpc-testnet';
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
