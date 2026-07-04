@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue';
+import { onUnmounted, watch } from 'vue';
 import { App as kApp } from 'konsta/vue';
 import { useAuthStore } from '@/stores/auth';
 import { useUIStore } from '@/stores/ui';
@@ -30,15 +30,32 @@ const ui = useUIStore();
 
 let syncInterval = null;
 
-onMounted(() => {
-  indexerService.startSyncLoop(30000);
-  // Also kick off an immediate sync every 15s as a heartbeat
-  syncInterval = setInterval(() => indexerService.syncAllMerchants(), 15000);
-});
+function startSync() {
+  if (!syncInterval) {
+    indexerService.startSyncLoop(30000);
+    // Also kick off an immediate sync every 15s as a heartbeat
+    syncInterval = setInterval(() => indexerService.syncAllMerchants(), 15000);
+  }
+}
+
+function stopSync() {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+    syncInterval = null;
+    indexerService.stopSyncLoop();
+  }
+}
+
+watch([() => auth.address, () => auth.isMerchantMode], ([address, isMerchant]) => {
+  if (address && !isMerchant) {
+    startSync();
+  } else {
+    stopSync();
+  }
+}, { immediate: true });
 
 onUnmounted(() => {
-  clearInterval(syncInterval);
-  indexerService.stopSyncLoop();
+  stopSync();
 });
 </script>
 
