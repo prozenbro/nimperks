@@ -3,9 +3,9 @@ import { db } from '../db/schema.js';
 import { parseTransactionData } from '../protocol/parser.js';
 
 const SYNC_PAGE_SIZE = 100;
-const CAMPAIGN_ADDRESS = import.meta.env.VITE_NIMIQ_CAMPAIGN_ADDRESS || '';
-const PROFILE_ADDRESS = import.meta.env.VITE_NIMIQ_PROFILE_ADDRESS || '';
-const REDEMPTIONS_ADDRESS = import.meta.env.VITE_NIMIQ_REDEMPTIONS_ADDRESS || '';
+const CAMPAIGN_ADDRESS = (import.meta.env.VITE_NIMIQ_CAMPAIGN_ADDRESS || '').replace(/\s+/g, '').toUpperCase();
+const PROFILE_ADDRESS = (import.meta.env.VITE_NIMIQ_PROFILE_ADDRESS || '').replace(/\s+/g, '').toUpperCase();
+const REDEMPTIONS_ADDRESS = (import.meta.env.VITE_NIMIQ_REDEMPTIONS_ADDRESS || '').replace(/\s+/g, '').toUpperCase();
 
 export class IndexerService extends EventTarget {
   constructor() {

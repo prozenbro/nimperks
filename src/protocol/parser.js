@@ -68,12 +68,13 @@ export function parseTransactionData(dataString) {
     // B4|{StoreName}|{Branch}|{minStamps}
     const parts = text.split('|');
     if (parts.length >= 3) {
+      const parsedStamps = parts.length > 3 ? parseInt(parts[3], 10) : 10;
       return {
         type: 'profile',
         merchant: '',
         name: parts[1] || 'Unknown Store',
         branch: parts[2] || 'Main',
-        minStamps: parts.length > 3 ? parseInt(parts[3], 10) || 10 : 10,
+        minStamps: isNaN(parsedStamps) ? 10 : parsedStamps,
         timestamp: 0
       };
     }
