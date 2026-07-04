@@ -188,6 +188,7 @@ export class IndexerService extends EventTarget {
           address: normFrom,
           name: parsed.name,
           branch: parsed.branch,
+          minStamps: parsed.minStamps,
           timestamp: tx.timestamp
         });
       }

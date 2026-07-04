@@ -65,14 +65,15 @@ export function parseTransactionData(dataString) {
   }
 
   if (text.startsWith('B4|')) {
-    // B4|{StoreName}|{Branch}
+    // B4|{StoreName}|{Branch}|{minStamps}
     const parts = text.split('|');
     if (parts.length >= 3) {
       return {
         type: 'profile',
         merchant: '',
         name: parts[1] || 'Unknown Store',
-        branch: parts.slice(2).join('|') || 'Main',
+        branch: parts[2] || 'Main',
+        minStamps: parts.length > 3 ? parseInt(parts[3], 10) || 10 : 10,
         timestamp: 0
       };
     }
@@ -251,8 +252,8 @@ export function packClose(campIdHashBytes) {
   return new TextEncoder().encode(textPayload);
 }
 
-export function packProfile(name, branch) {
-  const textPayload = `B4|${name}|${branch || 'Main'}`;
+export function packProfile(name, branch, minStamps = 10) {
+  const textPayload = `B4|${name}|${branch || 'Main'}|${minStamps}`;
   const payloadBytes = new TextEncoder().encode(textPayload);
   
   if (payloadBytes.length > 64) {

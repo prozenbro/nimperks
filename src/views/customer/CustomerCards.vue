@@ -310,7 +310,7 @@ async function checkOnboarding() {
   if (!auth.address) return;
   const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
   const profile = await db.merchants.get(normAddress);
-  showOnboardingFTUE.value = !profile || !profile.signature || profile.name.startsWith('Customer ');
+  showOnboardingFTUE.value = !profile || profile.name.startsWith('Customer ');
 }
 
 async function initiatePayment(stamp) {

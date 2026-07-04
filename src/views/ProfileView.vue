@@ -170,11 +170,25 @@
             <p class="payment-desc mt-2">{{ txState.error }}</p>
             <k-button class="nim-btn-secondary mt-4 w-full" @click="txState.error = null; txState.isPending = false;">Dismiss</k-button>
           </div>
-          <div v-else-if="txState.countdown === 0">
-            <div class="payment-icon" style="font-size: 3rem; animation: bounce 1s infinite;">✅</div>
-            <h3 class="payment-title" style="color: var(--success);">Confirmed!</h3>
-            <p class="payment-desc mt-2">Your branding is now live on the blockchain.</p>
-            <k-button class="nim-btn-primary mt-4 w-full" @click="txState.isPending = false">Done</k-button>
+          <div v-else-if="txState.countdown === 0" class="success-content">
+            <!-- Confetti Container -->
+            <div class="confetti-container">
+              <div v-for="i in 12" :key="i" class="confetti-piece"></div>
+            </div>
+            
+            <div class="payment-icon success-anim">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--nim-gold)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+            <h3 class="payment-title" style="color: var(--nim-gold); font-size: 1.5rem; margin-top: 16px;">
+              {{ auth.isMerchantMode ? 'Store Updated!' : 'Profile Claimed!' }}
+            </h3>
+            <p class="payment-desc mt-2" style="font-size: 0.95rem; line-height: 1.4;">
+              {{ auth.isMerchantMode ? 'Your branding and default target are now live on the blockchain.' : 'Your unique username is now live on the blockchain.' }}
+            </p>
+            <k-button class="nim-btn-primary mt-6 w-full" @click="txState.isPending = false" style="background: var(--nim-gold); color: white;">Done</k-button>
           </div>
           <div v-else>
             <div style="display: flex; justify-content: center; margin-bottom: 20px;">
@@ -292,7 +306,7 @@ async function claimUsername() {
   
   try {
     const branchName = currentProfile.value ? (currentProfile.value.branch || 'Main') : 'Main';
-    const payloadBytes = packProfile(name, branchName);
+    const payloadBytes = packProfile(name, branchName, auth.isMerchantMode ? minStamps.value : undefined);
     
     // Broadcast on-chain using 1 Luna
     await wallet.sendTransaction({
@@ -321,7 +335,7 @@ async function claimUsername() {
         txState.timerInterval = null;
         
         if (txState.countdown === 0) {
-          alert('Branding is now live on-chain!');
+          // alert removed, we rely on the beautiful overlay
           await loadProfile();
         } else {
           txState.error = "Confirmation took too long. It may still be processed shortly.";
@@ -460,4 +474,55 @@ onMounted(loadProfile);
   border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Success Animation */
+.success-anim svg {
+  animation: stroke-draw 0.6s ease-out forwards;
+}
+@keyframes stroke-draw {
+  0% { stroke-dasharray: 0, 100; opacity: 0; transform: scale(0.8); }
+  100% { stroke-dasharray: 100, 0; opacity: 1; transform: scale(1); }
+}
+
+/* Confetti */
+.confetti-container {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 10;
+}
+.confetti-piece {
+  position: absolute;
+  width: 8px; height: 16px;
+  background: var(--nim-gold);
+  top: -20px;
+  opacity: 0;
+}
+.confetti-piece:nth-child(even) { background: #E9B213; border-radius: 50%; width: 12px; height: 12px; }
+.confetti-piece:nth-child(3n) { background: #FFFFFF; }
+
+.confetti-piece:nth-child(1) { left: 10%; animation: confetti-fall 2s ease-out forwards 0.1s; }
+.confetti-piece:nth-child(2) { left: 20%; animation: confetti-fall 2.2s ease-out forwards 0.3s; }
+.confetti-piece:nth-child(3) { left: 30%; animation: confetti-fall 1.8s ease-out forwards 0.2s; }
+.confetti-piece:nth-child(4) { left: 40%; animation: confetti-fall 2.4s ease-out forwards 0.4s; }
+.confetti-piece:nth-child(5) { left: 50%; animation: confetti-fall 2.1s ease-out forwards 0.1s; }
+.confetti-piece:nth-child(6) { left: 60%; animation: confetti-fall 1.9s ease-out forwards 0.5s; }
+.confetti-piece:nth-child(7) { left: 70%; animation: confetti-fall 2.3s ease-out forwards 0.2s; }
+.confetti-piece:nth-child(8) { left: 80%; animation: confetti-fall 2.0s ease-out forwards 0.6s; }
+.confetti-piece:nth-child(9) { left: 90%; animation: confetti-fall 2.5s ease-out forwards 0.3s; }
+.confetti-piece:nth-child(10) { left: 15%; animation: confetti-fall 2.1s ease-out forwards 0.4s; }
+.confetti-piece:nth-child(11) { left: 55%; animation: confetti-fall 1.8s ease-out forwards 0.1s; }
+.confetti-piece:nth-child(12) { left: 85%; animation: confetti-fall 2.2s ease-out forwards 0.5s; }
+
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(200px) rotate(360deg); opacity: 0; }
+}
+
+.success-content {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 24px 0 8px;
+}
 </style>
