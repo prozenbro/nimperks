@@ -56,6 +56,7 @@ export class IndexerService extends EventTarget {
   async syncGlobalTables() {
     if (CAMPAIGN_ADDRESS) await this.syncTable(CAMPAIGN_ADDRESS, 'campaigns');
     if (REDEMPTIONS_ADDRESS) await this.syncTable(REDEMPTIONS_ADDRESS, 'redemptions');
+    if (PROFILE_ADDRESS) await this.syncTable(PROFILE_ADDRESS, 'profiles');
   }
 
   async syncTable(address, type) {
@@ -86,18 +87,6 @@ export class IndexerService extends EventTarget {
   }
 
   async processTableTransaction(tx, type) {
-    // Log transaction to DB for generic viewing if needed
-    try {
-      await db.transactions.put({
-        hash: tx.hash,
-        from: tx.from,
-        to: tx.to,
-        value: tx.value,
-        data: tx.data,
-        timestamp: tx.timestamp
-      });
-    } catch (e) {}
-
     const parsed = parseTransactionData(tx.data);
     if (!parsed) return;
 
@@ -181,8 +170,11 @@ export class IndexerService extends EventTarget {
           }
         }
       }
-      
-      else if (parsed.type === 'profile') {
+    } 
+    
+    else if (type === 'profiles') {
+      const normFrom = (tx.from || '').replace(/\s+/g, '').toUpperCase();
+      if (parsed.type === 'profile') {
         // Binary Profile (0x04)
         const existing = await db.merchants.get(normFrom);
         if (!existing || existing.timestamp <= tx.timestamp) {
@@ -263,17 +255,7 @@ export class IndexerService extends EventTarget {
   }
 
   async processTransaction(tx, merchantAddress) {
-    // Log direct merchant transactions in DB
-    try {
-      await db.transactions.put({
-        hash: tx.hash,
-        from: tx.from,
-        to: tx.to,
-        value: tx.value,
-        data: tx.data,
-        timestamp: tx.timestamp
-      });
-    } catch (e) {}
+
 
     // Normal transactions (Stamps logic)
     // If user sends to merchant (with no extra payload data), we count it towards stamps
