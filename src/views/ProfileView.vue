@@ -252,15 +252,15 @@ const customUsername = ref('');
 const minStamps = ref(10);
 
 const canChange = computed(() => {
-  if (!currentProfile.value?.updatedAt) return true;
-  return Date.now() - currentProfile.value.updatedAt > 30 * 24 * 60 * 60 * 1000;
+  if (!currentProfile.value?.timestamp) return true;
+  return Date.now() - (currentProfile.value.timestamp * 1000) > 30 * 24 * 60 * 60 * 1000;
 });
 const hasClaimedOnce = computed(() => {
   return !!(currentProfile.value && currentProfile.value.name);
 });
 const nextChangeDate = computed(() => {
-  if (!currentProfile.value?.updatedAt) return '';
-  return new Date(currentProfile.value.updatedAt + 30 * 24 * 60 * 60 * 1000)
+  if (!currentProfile.value?.timestamp) return '';
+  return new Date((currentProfile.value.timestamp * 1000) + 30 * 24 * 60 * 60 * 1000)
     .toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 });
 
@@ -325,7 +325,7 @@ async function claimUsername() {
         await indexerService.syncAllMerchants();
         const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
         const found = await db.merchants.get(normAddress);
-        if (found && found.timestamp >= timestamp - 60000) { // allow a bit of clock skew
+        if (found && (found.timestamp * 1000) >= timestamp - 60000) { // allow a bit of clock skew
           txState.countdown = 0;
         }
       }
