@@ -253,14 +253,14 @@ const minStamps = ref(10);
 
 const canChange = computed(() => {
   if (!currentProfile.value?.timestamp) return true;
-  return Date.now() - (currentProfile.value.timestamp * 1000) > 30 * 24 * 60 * 60 * 1000;
+  return Date.now() - currentProfile.value.timestamp > 30 * 24 * 60 * 60 * 1000;
 });
 const hasClaimedOnce = computed(() => {
   return !!(currentProfile.value && currentProfile.value.name);
 });
 const nextChangeDate = computed(() => {
   if (!currentProfile.value?.timestamp) return '';
-  return new Date((currentProfile.value.timestamp * 1000) + 30 * 24 * 60 * 60 * 1000)
+  return new Date(currentProfile.value.timestamp + 30 * 24 * 60 * 60 * 1000)
     .toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 });
 
@@ -323,9 +323,8 @@ async function claimUsername() {
       
       if (txState.countdown % 10 === 0 && txState.countdown > 0) {
         await indexerService.syncAllMerchants();
-        const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
-        const found = await db.merchants.get(normAddress);
-        if (found && (found.timestamp * 1000) >= timestamp - 60000) { // allow a bit of clock skew
+        const found = await db.merchants.get(auth.address.replace(/\s+/g, '').toUpperCase());
+        if (found && found.timestamp >= timestamp - 60000) { // allow a bit of clock skew
           txState.countdown = 0;
         }
       }
