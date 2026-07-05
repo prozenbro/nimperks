@@ -48,6 +48,7 @@ function stopSync() {
 
 watch(() => auth.address, (address) => {
   if (address) {
+    indexerService.syncUserHistory(address).catch(console.error);
     startSync();
   } else {
     stopSync();

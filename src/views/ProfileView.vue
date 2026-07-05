@@ -39,7 +39,7 @@
           />
           <k-button class="nim-btn-primary w-full mt-4 submit-btn" @click="claimUsername" :disabled="claiming">
             <span v-if="claiming" class="mini-spinner-inline" />
-            <span v-else>Update Target & Sign · Free</span>
+            <span v-else>Update Target & Sign · 1 Luna</span>
           </k-button>
         </div>
       </div>
@@ -143,7 +143,7 @@
           </p>
           <k-button class="nim-btn-primary w-full submit-btn" style="margin-top: 20px;" @click="claimUsername" :disabled="claiming">
             <span v-if="claiming" class="mini-spinner-inline" />
-            <span v-else>Update Profile Settings · Free</span>
+            <span v-else>Update Profile Settings · 1 Luna</span>
           </k-button>
         </div>
       </div>
@@ -315,7 +315,7 @@ async function claimUsername() {
       extraData: payloadBytes
     });
     
-    const timestamp = Date.now();
+    const oldTimestamp = currentProfile.value?.timestamp || 0;
     
     // Start confirmation countdown
     txState.timerInterval = setInterval(async () => {
@@ -324,7 +324,7 @@ async function claimUsername() {
       if (txState.countdown % 10 === 0 && txState.countdown > 0) {
         await indexerService.syncAllMerchants();
         const found = await db.merchants.get(auth.address.replace(/\s+/g, '').toUpperCase());
-        if (found && found.timestamp >= timestamp - 60000) { // allow a bit of clock skew
+        if (found && found.timestamp > oldTimestamp) {
           txState.countdown = 0;
         }
       }

@@ -59,6 +59,39 @@ export class IndexerService extends EventTarget {
     if (PROFILE_ADDRESS) await this.syncTable(PROFILE_ADDRESS, 'profiles');
   }
 
+  async syncUserHistory(userAddress) {
+    if (!userAddress) return;
+    const address = userAddress.replace(/\s+/g, '').toUpperCase();
+    let state = await db.sync_state.get(`USER-${address}`);
+    if (!state) {
+      state = {
+        address: `USER-${address}`,
+        newest_seen_tx_hash: null,
+      };
+    }
+
+    const txs = await rpc.getTransactionsByAddress(address, SYNC_PAGE_SIZE, null);
+    if (!txs || txs.length === 0) return;
+
+    let processed = 0;
+    // Process backwards (newest to oldest)
+    for (const tx of txs) {
+      if (tx.hash === state.newest_seen_tx_hash) break;
+      
+      const to = (tx.to || '').replace(/\s+/g, '').toUpperCase();
+      if (to === PROFILE_ADDRESS) await this.processTableTransaction(tx, 'profiles');
+      else if (to === CAMPAIGN_ADDRESS) await this.processTableTransaction(tx, 'campaigns');
+      else if (to === REDEMPTIONS_ADDRESS) await this.processTableTransaction(tx, 'redemptions');
+      
+      processed++;
+    }
+
+    if (processed > 0) {
+      state.newest_seen_tx_hash = txs[0].hash;
+      await db.sync_state.put(state);
+    }
+  }
+
   async syncTable(address, type) {
     let state = await db.sync_state.get(address);
     if (!state) {
@@ -197,7 +230,7 @@ export class IndexerService extends EventTarget {
               address: address,
               name: parsed.name,
               branch: parsed.branch || 'Main',
-              minStamps: parsed.minStamps || 10,
+              minStamps: parsed.minStamps !== undefined ? parsed.minStamps : 10,
               timestamp: tx.timestamp || 0,
             });
           }
