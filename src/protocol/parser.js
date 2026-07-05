@@ -206,12 +206,25 @@ export function parseTransactionData(dataString) {
     };
   }
 
+  if (text.startsWith('B5|')) {
+    // B5|{voucherHashPrefix}|{customerAddress}
+    // voucherHashPrefix is the first 10-12 chars of the voucher hash to save space
+    // customerAddress is the full NIM address NQXX XXXX ... (44 chars)
+    const parts = text.split('|');
+    return {
+      type: 'redeem',
+      voucherHashPrefix: parts[1],
+      userAddress: parts[2]
+    };
+  }
+
+  // Legacy parse for backward compatibility during transitions (if any)
   if (text.startsWith('[NimPerks:Redeem]')) {
-    // [NimPerks:Redeem] <VoucherHash>
     const content = text.replace('[NimPerks:Redeem]', '').trim();
     return {
       type: 'redeem',
-      voucherHash: content,
+      voucherHashPrefix: content.substring(0, 12),
+      userAddress: null // Not recorded in legacy payload
     };
   }
 
@@ -259,6 +272,20 @@ export function packProfile(name, branch, minStamps = 10) {
   
   if (payloadBytes.length > 64) {
     throw new Error(`Profile name too large (${payloadBytes.length} bytes). Keep it shorter!`);
+  }
+
+  return payloadBytes;
+}
+
+export function packRedeem(voucherHash, userAddress) {
+  // voucherHash might be a long hex. We'll take the first 12 chars to save space
+  // Address is 44 chars. B5| is 3 chars. 3 + 12 + 1 + 44 = 60 chars. (Leaves 4 bytes for padding)
+  const shortHash = voucherHash.substring(0, 12);
+  const textPayload = `B5|${shortHash}|${userAddress.replace(/\s+/g, '').toUpperCase()}`;
+  const payloadBytes = new TextEncoder().encode(textPayload);
+  
+  if (payloadBytes.length > 64) {
+    throw new Error(`Redeem payload too large (${payloadBytes.length} bytes). Max 64 bytes.`);
   }
 
   return payloadBytes;

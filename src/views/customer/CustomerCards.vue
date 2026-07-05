@@ -185,7 +185,7 @@
               @click="revealVoucher(stamp)"
               :disabled="stamp.generating"
             >
-              <span v-if="stamp.generating" class="spinner" />
+              <span v-if="stamp.generating" class="mini-spinner-inline" />
               <span v-else>Show Voucher QR</span>
             </k-button>
           </div>
@@ -302,12 +302,18 @@ function advanceFTUE() {
   if (ftueStep.value < ftueSteps.value.length - 1) {
     ftueStep.value++;
   } else {
+    showOnboardingFTUE.value = false;
+    localStorage.setItem('ftue_seen_' + auth.address, 'true');
     $router.push('/customer/profile');
   }
 }
 
 async function checkOnboarding() {
   if (!auth.address) return;
+  if (localStorage.getItem('ftue_seen_' + auth.address) === 'true') {
+    showOnboardingFTUE.value = false;
+    return;
+  }
   const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
   const profile = await db.merchants.get(normAddress);
   showOnboardingFTUE.value = !profile || profile.name.startsWith('Customer ');
@@ -484,9 +490,14 @@ onMounted(async () => {
 async function revealVoucher(stamp) {
   stamp.generating = true;
   try {
+    // Build the payload in the format that validateVoucher() expects:
+    // "{signatureHex}|{userAddress}:{merchantAddress}:{ruleType}:{discountValue}"
+    // The NIMPERKS| prefix was previously breaking the parser, causing userAddress
+    // to be lost and the B5| on-chain payload to have a blank customer address.
     const payload = generateVoucherPayload(auth.address, stamp.merchant, stamp.ruleType, stamp.ruleValue);
     const mockSig = btoa(auth.address + stamp.merchant + Date.now()).replace(/=/g,'');
-    const qrData = `NIMPERKS|${mockSig}|${payload}`;
+    // Correct format: sig|payload (no NIMPERKS| prefix)
+    const qrData = `${mockSig}|${payload}`;
     stamp.qrUrl = await QRCode.toDataURL(qrData, {
       width: 260, margin: 1,
       color: { dark: '#000000', light: '#FFFFFF' }
@@ -505,7 +516,11 @@ async function refreshData() {
   if (syncing.value) return;
   syncing.value = true;
   try {
-    await indexerService.syncAllMerchants();
+    // Use syncUserHistory (not syncAllMerchants) — works universally in both
+    // Hub API (browser) and Nimiq Pay Mini-App SDK environments.
+    // syncAllMerchants relies on global RPC table polling which silently
+    // fails inside the Nimiq Pay webview.
+    if (auth.address) await indexerService.syncUserHistory(auth.address);
     const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
     const stamps = await db.stamps.where('user').equals(normAddress).toArray();
     

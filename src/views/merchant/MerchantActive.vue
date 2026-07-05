@@ -216,6 +216,8 @@ function advanceFTUE() {
   if (ftueStep.value < ftueSteps.value.length - 1) {
     ftueStep.value++;
   } else {
+    showOnboardingFTUE.value = false;
+    localStorage.setItem('ftue_seen_' + auth.address, 'true');
     $router.push('/merchant/profile');
   }
 }
@@ -238,9 +240,15 @@ async function loadCampaigns() {
 
 async function checkOnboarding() {
   if (!auth.address) return;
+  if (localStorage.getItem('ftue_seen_' + auth.address) === 'true') {
+    showOnboardingFTUE.value = false;
+    return;
+  }
   const normAddress = auth.address.replace(/\s+/g, '').toUpperCase();
   const profile = await db.merchants.get(normAddress);
-  showOnboardingFTUE.value = !profile || profile.name.startsWith('Merchant ') || profile.name.startsWith('Store ');
+  
+  // They need onboarding if they don't have a profile OR if it's the default "Unnamed Merchant"
+  showOnboardingFTUE.value = !profile || profile.name.startsWith('Unnamed');
 }
 
 async function generateStoreQR() {

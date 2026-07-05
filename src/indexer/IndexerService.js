@@ -241,20 +241,29 @@ export class IndexerService extends EventTarget {
     
     else if (type === 'redemptions') {
       if (parsed.type === 'redeem') {
-        const existing = await db.redemptions.get(tx.hash);
+        const normMerchant = (tx.from || '').replace(/\s+/g, '').toUpperCase();
+        const normUser = (parsed.userAddress || '').replace(/\s+/g, '').toUpperCase();
+        
+        // We might not know the tx.hash when optimistically writing.
+        // But we DO know the voucherHashPrefix.
+        // We check for any pending redemption for this merchant that matches the hash prefix.
+        const allRedemptions = await db.redemptions.where('merchant').equals(normMerchant).toArray();
+        const existing = allRedemptions.find(r => r.hash.startsWith(parsed.voucherHashPrefix));
+
         if (existing) {
+          // If we found the optimistic record, we upgrade its hash to the real tx.hash
+          const oldHash = existing.hash;
+          existing.hash = tx.hash;
           existing.status = 'confirmed';
           existing.timestamp = tx.timestamp;
+          await db.redemptions.delete(oldHash);
           await db.redemptions.put(existing);
         } else {
-          const normMerchant = (tx.to || '').replace(/\s+/g, '').toUpperCase();
-          const normUser = (parsed.userAddress || tx.from || '').replace(/\s+/g, '').toUpperCase();
-
           await db.redemptions.put({
             hash: tx.hash,
             merchant: normMerchant,
             user: normUser,
-            reward: parsed.rewardLabel || 'Reward',
+            reward: 'Reward Redeemed',
             timestamp: tx.timestamp,
             status: 'confirmed'
           });

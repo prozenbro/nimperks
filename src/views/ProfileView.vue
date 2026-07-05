@@ -77,7 +77,7 @@
           </p>
           <div class="claim-section">
             <k-button @click="claimUsername" class="nim-btn-primary w-full submit-btn mt-6" style="padding: 24px; font-size: 1.1rem; letter-spacing: 0.02em;" :disabled="txState.isPending">
-              <span v-if="txState.isPending" class="spinner" />
+              <span v-if="txState.isPending" class="mini-spinner-inline" />
               <span v-else>{{ auth.isMerchantMode ? 'Claim Store Branding · 1 Luna' : 'Claim Username · 1 Luna' }}</span>
             </k-button>
             <p class="cost-note mt-2" style="font-size: 0.75rem; color: var(--text-secondary); text-align: center;">Broadcasts a 1 Luna (~0.00001 NIM) transaction on-chain.</p>
@@ -148,10 +148,14 @@
         </div>
       </div>
 
-      <!-- Logout and Clear Cache section (iOS Native style) -->
+      <!-- Sync and Settings section (iOS Native style) -->
       <div style="text-align: center; margin-top: 36px; padding: 0 20px;">
+        <k-button @click="manualSync" style="max-width: 220px; background: var(--nim-gold); border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto 20px; width: 100%; box-shadow: 0 4px 12px rgba(226, 172, 70, 0.2);" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+          Resync My Data
+        </k-button>
+        
         <k-button @click="clearCacheAndResync" style="max-width: 220px; background: #555555; border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto 20px; width: 100%;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
-          Clear Cache & Resync
+          Clear Full Cache & Reload
         </k-button>
 
         <k-button @click="doLogout" style="max-width: 220px; background: #FF3B30; border: none; border-radius: 12px; color: #FFFFFF; font-size: 0.9rem; font-weight: 700; padding: 14px; cursor: pointer; transition: opacity 0.15s; margin: 0 auto; width: 100%; box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2);" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
@@ -318,11 +322,15 @@ async function claimUsername() {
     const oldTimestamp = currentProfile.value?.timestamp || 0;
     
     // Start confirmation countdown
+    // Uses syncUserHistory (not syncAllMerchants) so it works in Mini-App SDK
+    // where global RPC polling may fail. syncUserHistory fetches the user's
+    // personal address history which works in both Hub API and Mini-App environments.
     txState.timerInterval = setInterval(async () => {
       txState.countdown--;
       
       if (txState.countdown % 10 === 0 && txState.countdown > 0) {
-        await indexerService.syncAllMerchants();
+        // User-Centric sync: works universally in Hub API and Nimiq Pay Mini-App
+        await indexerService.syncUserHistory(auth.address);
         const found = await db.merchants.get(auth.address.replace(/\s+/g, '').toUpperCase());
         if (found && found.timestamp > oldTimestamp) {
           txState.countdown = 0;
@@ -334,7 +342,6 @@ async function claimUsername() {
         txState.timerInterval = null;
         
         if (txState.countdown === 0) {
-          // alert removed, we rely on the beautiful overlay
           await loadProfile();
         } else {
           txState.error = "Confirmation took too long. It may still be processed shortly.";
@@ -349,8 +356,17 @@ async function claimUsername() {
   }
 }
 
+async function manualSync() {
+  if (auth.address) {
+    alert("Fetching your latest transactions from the blockchain...");
+    await indexerService.syncUserHistory(auth.address);
+    await loadProfile();
+    alert("Sync complete!");
+  }
+}
+
 async function clearCacheAndResync() {
-  if (confirm('This will clear your local app cache and resync data from the blockchain. Continue?')) {
+  if (confirm('This will completely clear your local app cache and reload the app. Continue?')) {
     try {
       await db.sync_state.clear();
       await db.transactions.clear();

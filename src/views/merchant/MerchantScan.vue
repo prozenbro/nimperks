@@ -106,6 +106,7 @@ import { validateVoucher } from '@/protocol/voucher';
 import { wallet } from '@/protocol/walletAdapter';
 import { useAuthStore } from '@/stores/auth';
 import { db } from '@/db/schema';
+import { packRedeem } from '@/protocol/parser';
 
 const auth = useAuthStore();
 const isScanning = ref(false);
@@ -155,15 +156,19 @@ async function processVoucher(text) {
       throw new Error(result.reason || 'Invalid voucher for this store');
     }
     const voucherHash = text.substring(0, 20);
-    const extra = new TextEncoder().encode(`REDEEM|${voucherHash}`);
+    const extra = packRedeem(voucherHash, result.userAddress);
+    
+    // Nimiq Pay sendTransaction won't necessarily return the hash instantly, or we might need it for DB.
+    // For now, we'll write an optimistic record using a temporary ID.
+    // When the indexer picks it up, it will save it under the real tx.hash.
     await wallet.sendTransaction({ recipient: REDEMPTIONS_ADDRESS || auth.address, value: 1, extraData: extra });
 
     // Optimistically write pending record
     await db.redemptions.put({
-      hash: voucherHash,
+      hash: voucherHash.substring(0, 12) + '_' + Date.now(), // Use prefix so indexer can match it
       merchant: normAddress,
       user: result.userAddress || '',
-      reward: result.ruleType || 'Reward',
+      reward: 'Reward Redeemed',
       timestamp: Math.floor(Date.now() / 1000),
       status: 'pending'
     });
