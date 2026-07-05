@@ -173,20 +173,37 @@ export class IndexerService extends EventTarget {
     } 
     
     else if (type === 'profiles') {
-      const normFrom = (tx.from || '').replace(/\s+/g, '').toUpperCase();
-      if (parsed.type === 'profile') {
-        // Binary Profile (0x04)
-        const existing = await db.merchants.get(normFrom);
-        if (!existing || existing.timestamp <= tx.timestamp) {
-          await db.merchants.put({
-            address: normFrom,
-            name: parsed.name,
-            branch: parsed.branch,
-            minStamps: parsed.minStamps,
-            timestamp: tx.timestamp
-          });
+      let addressesToUpdate = [(tx.from || '').replace(/\s+/g, '').toUpperCase()];
+      
+      // If it's an HTLC atomic swap (type 2), the 'from' address is the HTLC contract.
+      // We must extract the user's refund address from relatedAddresses securely.
+      if (tx.fromType === 2 && tx.relatedAddresses) {
+        const normRelated = tx.relatedAddresses.map(a => (a || '').replace(/\s+/g, '').toUpperCase());
+        // Remove the HTLC address and the PROFILE_ADDRESS
+        addressesToUpdate = normRelated.filter(a => a !== addressesToUpdate[0] && a !== PROFILE_ADDRESS);
+        
+        // If relatedAddresses was empty for some reason, fallback to from
+        if (addressesToUpdate.length === 0) {
+          addressesToUpdate = [(tx.from || '').replace(/\s+/g, '').toUpperCase()];
         }
       }
+
+      if (parsed.type === 'profile') {
+        // Binary Profile (0x04)
+        for (const address of addressesToUpdate) {
+          const existing = await db.merchants.get(address);
+          if (!existing || existing.timestamp <= tx.timestamp) {
+            await db.merchants.put({
+              address: address,
+              name: parsed.name,
+              branch: parsed.branch || 'Main',
+              minStamps: parsed.minStamps || 10,
+              timestamp: tx.timestamp || 0,
+            });
+          }
+        }
+      }
+      return;
     } 
     
     else if (type === 'redemptions') {
